@@ -3,7 +3,7 @@ extends Resource
 class_name SD_PluginViewSettings
 
 const _BUILTIN_TABS: Array[PackedScene] = [
-	
+	preload("res://addons/simusdev/editor/localization_editor/localization_editor.tscn")
 ]
 
 signal on_custom_tabs_changed()
