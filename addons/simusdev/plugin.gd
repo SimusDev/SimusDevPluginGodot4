@@ -21,7 +21,7 @@ func _enter_tree() -> void:
 	for s in AUTOLOAD:
 		add_autoload_singleton(s, AUTOLOAD[s])
 	
-	await get_tree().process_frame
+	await get_tree().create_timer(1, false).timeout
 	_view = _view_scene.instantiate()
 	EditorInterface.get_editor_main_screen().add_child(_view)
 	_view.hide()

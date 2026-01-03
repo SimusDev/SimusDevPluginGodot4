@@ -94,6 +94,15 @@ func set_localization_language(new: StringName) -> void:
 @export var network: SD_NetworkSettings = SD_NetworkSettings.new()
 @export var multiplayer: SD_MultiplayerSettings = SD_MultiplayerSettings.new()
 
+@export_group("Editor")
+@export var editor_view: SD_PluginViewSettings = SD_PluginViewSettings.new() : get = get_editor_view
+
+func get_editor_view() -> SD_PluginViewSettings:
+	if !editor_view:
+		editor_view = SD_PluginViewSettings.new()
+		return editor_view
+	return editor_view
+
 const BASE_PATH: String = "res://settings"
 const FILE_PATH: String = "res://settings/engine.tres"
 
