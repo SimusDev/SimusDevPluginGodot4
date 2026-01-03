@@ -64,6 +64,8 @@ func _invoke(callable: Callable, args: Array) -> void:
 
 func _invoke_on_without_validating(peer: int, callable: Callable, args: Array, config: SimusNetRPCConfig) -> void:
 	var object: Object = callable.get_object()
+	if !SimusNetVisibility.is_visible_for(peer, object):
+		return
 	
 	var identity: SimusNetIdentity = SimusNetIdentity.try_find_in(object)
 	
