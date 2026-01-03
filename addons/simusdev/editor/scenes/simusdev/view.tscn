@@ -15,9 +15,5 @@ size_flags_vertical = 3
 script = ExtResource("1_12x62")
 
 [node name="TabContainer" parent="." unique_id=1999479900 instance=ExtResource("2_bpncc")]
-layout_mode = 0
-anchors_preset = 0
-anchor_right = 0.0
-anchor_bottom = 0.0
-grow_horizontal = 1
-grow_vertical = 1
+layout_mode = 1
+current_tab = 0
