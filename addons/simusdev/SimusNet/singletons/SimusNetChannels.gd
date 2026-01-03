@@ -8,9 +8,11 @@ enum BUILTIN {
 	CACHE,
 	REGISTER,
 	IDENTITY,
+	VISIBILITY,
 }
 
 const DEFAULT: String = "main"
+const DEFAULT_ID: int = 0
 
 static var _instance: SimusNetChannels
 
@@ -18,6 +20,13 @@ func initialize() -> void:
 	_instance = self
 	
 	register(DEFAULT)
+
+static func parse_and_get_id(channel: Variant) -> int:
+	if channel is int:
+		return channel
+	if channel is String:
+		return get_id(channel)
+	return DEFAULT_ID
 
 static func get_list() -> PackedStringArray:
 	return SimusNetCache.data_get_or_add("cns", PackedStringArray())
