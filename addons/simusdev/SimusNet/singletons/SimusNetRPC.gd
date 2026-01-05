@@ -64,8 +64,13 @@ func _invoke(callable: Callable, args: Array) -> void:
 
 func _invoke_on_without_validating(peer: int, callable: Callable, args: Array, config: SimusNetRPCConfig) -> void:
 	var object: Object = callable.get_object()
-	if !SimusNetVisibility.is_visible_for(peer, object):
+	
+	if is_cooldown_active(callable):
 		return
+		
+	if !SimusNetVisibility.is_visible_for(peer, object) and !SimusNetVisibility.is_method_always_visible(callable):
+		return
+	
 	
 	var identity: SimusNetIdentity = SimusNetIdentity.try_find_in(object)
 	
@@ -83,6 +88,7 @@ func _invoke_on_without_validating(peer: int, callable: Callable, args: Array, c
 		else:
 			p_callable.rpc_id(peer, serialized_unique_id, serialized_method_id, SimusNetSerializer.parse(args, config._serialization))
 	
+	_start_cooldown(callable)
 
 func _processor_recieve_rpc_from_peer(peer: int, channel: int, serialized_identity: Variant, serialized_method: Variant, serialized_args: Variant) -> void:
 	_setup_remote_sender(peer, channel)
@@ -149,3 +155,36 @@ func _invoke_on(peer: int, callable: Callable, args: Array) -> void:
 		return
 	
 	_invoke_on_without_validating(peer, callable, args, config)
+
+const _META_COOLDOWN: String = "netrpcs_cooldown"
+
+static func _cooldown_create_or_get_storage(callable: Callable) -> Dictionary[String, SD_CooldownTimer]:
+	var object: Object = callable.get_object()
+	var storage: Dictionary[String, SD_CooldownTimer] = {}
+	
+	if object.has_meta(_META_COOLDOWN):
+		storage = object.get_meta(_META_COOLDOWN)
+	else:
+		object.set_meta(_META_COOLDOWN, storage)
+	return storage
+
+static func set_cooldown(callable: Callable, time: float = 0.0) -> SimusNetRPC:
+	var timer := SD_CooldownTimer.new()
+	_cooldown_create_or_get_storage(callable)[callable.get_method()] = timer
+	return _instance
+
+static func get_cooldown(callable: Callable) -> SD_CooldownTimer:
+	var storage: Dictionary[String, SD_CooldownTimer] = _cooldown_create_or_get_storage(callable)
+	return storage.get(callable.get_method())
+
+static func is_cooldown_active(callable: Callable) -> bool:
+	var timer: SD_CooldownTimer = get_cooldown(callable)
+	if timer:
+		return timer.is_active()
+	return false
+
+static func _start_cooldown(callable: Callable) -> SimusNetRPC:
+	var timer: SD_CooldownTimer = get_cooldown(callable)
+	if timer:
+		timer.start()
+	return _instance

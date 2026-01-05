@@ -32,6 +32,15 @@ static func _parse_array(data: Array) -> Array:
 	
 	return parsed
 
+static func parse_image(data: Variant) -> Image:
+	data = SimusNetDecompressor.parse_gzip(data)
+	return Image.create_from_data(data.width, 
+	data.height, 
+	data.mipmaps,
+	data.format,
+	data.data
+	)
+
 static func parse(variant: Variant, try: bool = true) -> Variant:
 	if !try:
 		return variant

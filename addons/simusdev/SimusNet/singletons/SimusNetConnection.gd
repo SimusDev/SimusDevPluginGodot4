@@ -5,6 +5,8 @@ const SERVER_ID: int = 1
 
 static var _active: bool = false
 
+static var _is_dedicated_server: bool = false
+
 func initialize() -> void:
 	singleton.api.connection_failed.connect(_on_connection_failed)
 	singleton.api.connected_to_server.connect(_on_connected_to_server)
@@ -70,8 +72,11 @@ static func is_server() -> bool:
 
 static func is_dedicated_server() -> bool:
 	if is_server():
-		return true
+		return _is_dedicated_server
 	return false
+
+static func set_dedicated_server(value: bool) -> void:
+	_is_dedicated_server = value
 
 static func is_client() -> bool:
 	return !is_dedicated_server()

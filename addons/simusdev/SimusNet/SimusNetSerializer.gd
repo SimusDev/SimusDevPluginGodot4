@@ -50,6 +50,11 @@ static func _parse_array(variant: Array, data: Array = [], try: bool = true) -> 
 	data.append(parsed)
 	return parsed
 
+static func parse_image(image: Image, compressed: bool = true) -> Variant:
+	var data: Dictionary = image.data
+	data.format = image.get_format()
+	return SimusNetCompressor.parse_gzip(data)
+
 static func parse(variant: Variant, try: bool = true) -> Variant:
 	if !try:
 		return variant
@@ -73,6 +78,9 @@ static func parse(variant: Variant, try: bool = true) -> Variant:
 		_throw_error("failed to serialize: (%s), %s" % [type_string, variant])
 		return null
 	return parsed
+
+
+
 
 static func _throw_error(...args: Array) -> void:
 	if _settings.debug_enable:

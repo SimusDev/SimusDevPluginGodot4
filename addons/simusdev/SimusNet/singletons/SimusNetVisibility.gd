@@ -6,8 +6,9 @@ static var _queue_delete: Array[SimusNetIdentity] = []
 
 static var _instance: SimusNetVisibility
 
-const _META_PUBLIC: StringName = &"simusnet.public.visible"
-const _META_VISIBLES: StringName = &"simusnet.visibles"
+const _META_PUBLIC: StringName = &"simusnet_public_visible"
+const _META_VISIBLES: StringName = &"simusnet_visibles"
+const _META_METHODS: StringName = &"simusnet_visibles_m"
 
 func _ready() -> void:
 	pass
@@ -50,6 +51,17 @@ static func get_visibles_for(object: Object) -> PackedInt32Array:
 	return result
 
 static func is_visible_for(peer: int, object: Object) -> bool:
-	if is_public_visible(object):
+	if is_public_visible(object) or peer == SimusNetConnection.get_unique_id():
 		return true
 	return get_visibles_for(object).has(peer)
+
+static func is_method_always_visible(callable: Callable) -> bool:
+	var dict: Dictionary[String, bool] = SD_Variables.get_or_add_object_meta(callable.get_object(), _META_METHODS, {} as Dictionary[String, bool])
+	var value: bool = dict.get(callable.get_method(), false)
+	return value
+
+static func set_method_always_visible(callables: Array[Callable], visibility: bool = true) -> SimusNetVisibility:
+	for callable in callables:
+		var dict: Dictionary[String, bool] = SD_Variables.get_or_add_object_meta(callable.get_object(), _META_METHODS, {} as Dictionary[String, bool])
+		dict[callable.get_method()] = visibility
+	return _instance
