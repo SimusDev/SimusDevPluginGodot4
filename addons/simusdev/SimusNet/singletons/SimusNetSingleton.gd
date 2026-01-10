@@ -33,8 +33,6 @@ static func get_instance() -> SimusNetSingleton:
 	return _instance
 
 func _ready() -> void:
-	_instance = self
-	
 	info = SimusNetInfo.new()
 	_set_active(false, true)
 	get_tree().root.add_child.call_deferred(info)
@@ -52,7 +50,8 @@ func _ready() -> void:
 			i.logger.enabled = settings.debug_enable
 			i.initialize()
 	
-	
+	_instance = self
+	SimusNetEvents.event_singleton_initialized.publish()
 
 func _set_active(value: bool, server: bool) -> void:
 	if value == false:
