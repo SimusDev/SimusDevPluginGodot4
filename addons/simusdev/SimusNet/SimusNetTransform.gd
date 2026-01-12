@@ -3,8 +3,14 @@
 extends SimusNetNodeAutoVisible
 class_name SimusNetTransform
 
-@export var interpolate: bool = true
-@export var interpolate_speed: float = 15.0
+@export var interpolate: bool = true : get = is_interpolated
+@export var interpolate_speed: float = 15.0 : get = get_interpolate_speed
+
+func is_interpolated() -> bool:
+	return interpolate
+
+func get_interpolate_speed() -> float:
+	return interpolate_speed
 
 func _ready() -> void:
 	super()
@@ -12,11 +18,13 @@ func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
 	
+	if not "transform" in node:
+		return
+	
 	if !node.is_node_ready():
 		await node.ready
 		SimusNetIdentity.register(self)
 	
-	SimusNetSynchronization._instance._transform_ready(self)
 
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint():
@@ -47,7 +55,9 @@ func _enter_tree() -> void:
 	
 	if !is_node_ready():
 		await ready 
-	SimusNetSynchronization._instance._transform_enter_tree(self)
+	
+	if "transform" in node:
+		SimusNetSynchronization._instance._transform_enter_tree(self)
 
 func _exit_tree() -> void:
 	super()
@@ -55,5 +65,6 @@ func _exit_tree() -> void:
 	if Engine.is_editor_hint():
 		return
 	
-	SimusNetSynchronization._instance._transform_exit_tree(self)
+	if "transform" in node:
+		SimusNetSynchronization._instance._transform_exit_tree(self)
 	
