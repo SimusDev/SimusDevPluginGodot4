@@ -41,7 +41,7 @@ static func invoke(callable: Callable, ...args: Array) -> void:
 
 static func _invoke(callable: Callable, args: Array) -> void:
 	for peer in SimusNetConnection.get_connected_peers():
-		if SimusNetVisibility.is_visible_for(peer, callable.get_object()) and !SimusNetVisibility.is_method_always_visible(callable):
+		if SimusNetVisibility.is_visible_for(peer, callable.get_object()) or SimusNetVisibility.is_method_always_visible(callable):
 				_invoke_on(peer, callable, args)
 
 static func invoke_all(callable: Callable, ...args: Array) -> void:
@@ -69,7 +69,7 @@ static func set_cooldown(callable: Callable, time: float = 0.0) -> SimusNetRPCGo
 	SimusNetRPC.set_cooldown(callable, time)
 	return singleton.RPCgodot
 
-static func get_cooldown(callable: Callable) -> SD_CooldownTimer:
+static func get_cooldown(callable: Callable) -> SimusNetCooldownTimer:
 	return SimusNetRPC.get_cooldown(callable)
 
 static func is_cooldown_active(callable: Callable) -> bool:

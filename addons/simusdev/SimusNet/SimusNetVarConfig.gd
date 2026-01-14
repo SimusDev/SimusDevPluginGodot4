@@ -24,6 +24,9 @@ var _object: Object
 var _identity: SimusNetIdentity
 var _properties: PackedStringArray = []
 
+var _tickrate: float = 0.0
+var _tickrate_time: float = 0.0
+
 func get_identity() -> SimusNetIdentity:
 	return _identity
 
@@ -38,11 +41,16 @@ func flag_replication(on_spawn: bool = true, value: bool = true) -> SimusNetVarC
 	_f_rep(value)
 	return self
 
+func flag_tickrate(ticks: float) -> SimusNetVarConfig:
+	_tickrate = ticks
+	return self
+
 func _f_rep(value: bool = true) -> void:
 	if !is_ready:
 		await on_ready
 	
 	_replication = value
+	
 	if _replication:
 		SimusNetVars.get_instance().on_tick.connect(_on_tick)
 	else:
@@ -53,6 +61,9 @@ func flag_serialize(value: bool = true) -> SimusNetVarConfig:
 	return self
 
 func _async_apply_channel(channel: Variant) -> void:
+	if channel is String:
+		SimusNetChannels.register(channel)
+	_channel = SimusNetChannels.parse_and_get_id(channel)
 	_channel = await SimusNetChannels.async_parse_and_get_id(channel)
 
 func flag_reliable(channel: Variant = SimusNetChannels.BUILTIN.VARS_SEND_RELIABLE) -> SimusNetVarConfig:
@@ -93,11 +104,22 @@ func _on_spawn_replicate() -> void:
 	if _replicate_on_spawn:
 		SimusNetVars.replicate(_object, _properties, _reliable)
 
-func _on_tick() -> void:
-	if !SimusNetConnection.is_server() and _mode == MODE.SERVER_ONLY:
+func _on_tick(delta: float) -> void:
+	if _tickrate <= 0.0:
+		_process_sync()
 		return
-	 
+	
+	_tickrate_time = move_toward(_tickrate_time, 1.0 / _tickrate, delta)
+	if _tickrate_time >= 1.0 / _tickrate:
+		_process_sync()
+		_tickrate_time = 0
+
+
+func _process_sync() -> void:
 	if !SimusNet.is_network_authority(_object) and _mode == MODE.AUTHORITY:
+		return
+	
+	if !SimusNetConnection.is_server() and _mode == MODE.SERVER_ONLY:
 		return
 	
 	SimusNetVars.send(_object, _properties, _reliable)
