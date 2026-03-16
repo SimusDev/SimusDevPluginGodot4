@@ -9,6 +9,5 @@ static func is_network_authority(object: Object) -> bool:
 
 static func get_network_authority(object: Object) -> int:
 	if is_instance_valid(object):
-		if object.has_method("get_multiplayer_authority"):
-			return object.get_multiplayer_authority()
+		return object.get_multiplayer_authority()
 	return SimusNetConnection.SERVER_ID

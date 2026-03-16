@@ -2,13 +2,13 @@
 extends SimusNetNode
 class_name SimusNetNodeAutoVisible
 
-enum BROADCAST_TO {
-	TO_SERVER,
-	TO_ALL,
-}
+#enum BROADCAST_TO {
+	#TO_SERVER,
+	#TO_ALL,
+#}
 
 @export var node: Node
-@export var broadcast_to: BROADCAST_TO = BROADCAST_TO.TO_SERVER
+#@export var broadcast_to: BROADCAST_TO = BROADCAST_TO.TO_SERVER
 
 const _META_NAME: StringName = "SimusNetNodeAutoVisible"
 
@@ -21,6 +21,7 @@ static func _create(target: Node) -> SimusNetNodeAutoVisible:
 	var visibile := SimusNetNodeAutoVisible.new()
 	visibile.name = "SimusNetNodeAutoVisible"
 	visibile.node = target
+	visibile.set_multiplayer_authority(target.get_multiplayer_authority())
 	target.set_meta(_META_NAME, visibile)
 	return visibile
 
@@ -61,37 +62,46 @@ func _ready() -> void:
 	SimusNetVisibility.set_public_visibility(node, false)
 	
 	SimusNetEvents.event_peer_disconnected.listen(_on_peer_disconnected, true)
-	
 
 func _on_peer_disconnected(event: SimusNetEvent) -> void:
 	_peers.erase(event.get_arguments())
 	SimusNetVisibility.set_visible_for(event.get_arguments(), node, false)
-	
 
 func _send_visible() -> void:
 	var peer: int = multiplayer.get_remote_sender_id()
-	if !_peers.has(peer):
-		_peers.append(peer)
+	if _peers.has(peer):
+		return
 	
-	#print(_peers)
+	_peers.append(peer)
+	
 	SimusNetVisibility.set_visible_for(peer, node, true)
-	#print(node, " is visible for %s" % peer)
+	
+	if SimusNet.get_network_authority(self) != SimusNet.SERVER_ID:
+		if multiplayer.get_remote_sender_id() > SimusNet.SERVER_ID:
+				_send_visible.rpc_id(multiplayer.get_remote_sender_id())
 
 func _send_not_visible() -> void:
 	var peer: int = multiplayer.get_remote_sender_id()
+	if !_peers.has(peer):
+		return
+	
 	_peers.erase(peer)
+	
 	SimusNetVisibility.set_visible_for(peer, node, false)
-	#print(_peers)
-	#print(node, " is not visible for %s" % peer)
+	
+	if SimusNet.get_network_authority(self) != SimusNet.SERVER_ID:
+		if multiplayer.get_remote_sender_id() > SimusNet.SERVER_ID:
+				_send_not_visible.rpc_id(multiplayer.get_remote_sender_id())
 
 func _exit_tree() -> void:
 	if Engine.is_editor_hint():
 		return
 	
-	if broadcast_to == BROADCAST_TO.TO_SERVER:
+	if SimusNet.get_network_authority(node) == SimusNet.SERVER_ID:
 		SimusNetRPCGodot.invoke_on_server(_send_not_visible)
 		return
-	SimusNetRPCGodot.invoke(_send_not_visible)
+	
+	SimusNetRPCGodot.invoke_on(SimusNet.get_network_authority(self), _send_not_visible)
 
 func _enter_tree() -> void:
 	if Engine.is_editor_hint():
@@ -102,18 +112,15 @@ func _enter_tree() -> void:
 			_send_visible,
 			_send_not_visible,
 		], SimusNetChannels.BUILTIN.VISIBILITY)
+		
 		SimusNetVisibility.set_method_always_visible(
 			[_send_visible, _send_not_visible, ]
 		)
 	
 	if !is_network_ready:
 		await on_network_ready
-		
-	if broadcast_to == BROADCAST_TO.TO_SERVER:
-		SimusNetRPCGodot.invoke_on_server(_send_visible)
-		
-		return
-	SimusNetRPCGodot.invoke(_send_visible)
+	
+	SimusNetRPCGodot.invoke_on(SimusNet.get_network_authority(self), _send_visible)
 
 func _network_ready() -> void:
 	super()

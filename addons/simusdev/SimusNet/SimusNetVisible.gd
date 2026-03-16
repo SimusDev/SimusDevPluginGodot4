@@ -4,9 +4,20 @@ class_name SimusNetVisible
 const _META: StringName = &"SimusNetVisible"
 
 var _object: Object
-var _peers: PackedInt32Array = []
+var _peers: PackedInt32Array = [SimusNet.SERVER_ID]
 var _methods_always_visible: Array[StringName] = []
 var _public_visible: bool = true
+
+var _server_only: bool = false
+
+signal on_visible_set_for(peer: int, visible: bool)
+
+func is_server_only() -> bool:
+	return _server_only
+
+func set_server_only(value: bool = true) -> SimusNetVisible:
+	_server_only = value
+	return self
 
 func is_public_visible() -> bool:
 	return _public_visible
@@ -31,8 +42,10 @@ func set_visible_for(peer: int, visible: bool) -> SimusNetVisible:
 	if visible:
 		if !_peers.has(peer):
 			_peers.append(peer)
+			on_visible_set_for.emit(peer, visible)
 		return
 	_peers.erase(peer)
+	on_visible_set_for.emit(peer, visible)
 	return self
 
 func is_visible_for(peer: int) -> bool:

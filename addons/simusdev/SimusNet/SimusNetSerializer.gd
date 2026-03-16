@@ -6,6 +6,10 @@ static var _settings: SimusNetSettings
 
 const ARRAY_SIZE: int = 2
 
+static func is_object_has_custom_serialization(object: Object) -> bool:
+	return object.has_method(SimusNetCustomSerialization.METHOD_SERIALIZE) and \
+	object.has_method(SimusNetCustomSerialization.METHOD_DESERIALIZE)
+
 static func _throw_error(...args: Array) -> void:
 	if _settings.debug_enable:
 		printerr("[SimusNetSerializer]: ")
@@ -23,6 +27,7 @@ enum TYPE {
 	NODE_FROM,
 	ARRAY,
 	DICTIONARY,
+	CUSTOM,
 }
 
 static var __class_and_method: Dictionary[StringName, Callable] = {
@@ -30,7 +35,10 @@ static var __class_and_method: Dictionary[StringName, Callable] = {
 	"Object": parse_object,
 	"Array": parse_array,
 	"Dictionary": parse_dictionary,
-	"Image" : parse_image
+}
+
+static var _resource_class_and_method: Dictionary[StringName, Callable] = {
+	"Image": parse_image
 }
 
 static func _create_parsed(type: TYPE, value: Variant = null) -> Array:
@@ -44,11 +52,16 @@ static func parse(variant: Variant, try: bool = true) -> Variant:
 	
 	var parsed: Array = []
 	
+	var cls: String
+	
+	if variant is Object:
+		cls = variant.get_class()
+	
 	var type_string: String = type_string(typeof(variant))
 	
 	var parsable: bool = false
 	for c in __class_and_method:
-		if c == type_string:
+		if c == cls or c == type_string:
 			parsable = true
 			parsed = __class_and_method[c].call(variant)
 	
@@ -57,10 +70,19 @@ static func parse(variant: Variant, try: bool = true) -> Variant:
 	
 	if parsed.size() <= 1:
 		_throw_error("failed to serialize: (%s), %s" % [type_string, variant])
+		#print(parsed)
 		return variant
 	return parsed
 
+static func _parse_custom(variant: Object) -> Variant:
+	var serialization := SimusNetCustomSerialization.new()
+	variant.call(SimusNetCustomSerialization.METHOD_SERIALIZE, serialization)
+	return _create_parsed(SimusNetSerializer.TYPE.CUSTOM, serialization._net_serialize(variant))
+
 static func parse_object(variant: Object) -> Variant:
+	if is_object_has_custom_serialization(variant):
+		return _parse_custom(variant)
+
 	if variant is Node:
 		return parse_node(variant)
 	
@@ -73,17 +95,21 @@ static func parse_object(variant: Object) -> Variant:
 	return _create_parsed(TYPE.OBJECT)
 
 static func parse_resource(variant: Resource) -> Variant:
+	var cls: String = variant.get_class()
+	if cls in _resource_class_and_method:
+		return _resource_class_and_method[cls].call(variant)
+	
 	var id: int = SimusNetResources.get_unique_id(variant)
 	if id > -1:
 		return _create_parsed(TYPE.RESOURCE, id)
 	
-	SimusNetResources.cache(variant)
+	#SimusNetResources.cache(variant)
 	return _create_parsed(TYPE.RESOURCE, SimusNetResources.get_unique_path(variant))
 
 static func parse_image(image: Image) -> Variant:
 	var data: Dictionary = image.data
 	data.format = image.get_format()
-	return _create_parsed(TYPE.IMAGE, SimusNetCompressor.parse_gzip(data))
+	return _create_parsed(TYPE.IMAGE, SimusNetCompressor.parse_if_necessary(data))
 
 static func parse_identity(identity: Object) -> Variant:
 	if identity:
@@ -105,13 +131,20 @@ static func parse_node(node: Node) -> Variant:
 	return _create_parsed(TYPE.NODE)
 
 static func parse_array(array: Array) -> Variant:
-	var result: Array = []
+	var result: Array = Array([], array.get_typed_builtin(), array.get_typed_class_name(), array.get_typed_script())
 	for i in array:
 		result.append(parse(i))
 	return _create_parsed(TYPE.ARRAY, result)
 
 static func parse_dictionary(dictionary: Dictionary) -> Variant:
-	var result: Dictionary = {}
+	var result: Dictionary = Dictionary({}, 
+	dictionary.get_typed_key_builtin(),
+	dictionary.get_typed_key_class_name(),
+	dictionary.get_typed_key_script(),
+	dictionary.get_typed_value_builtin(),
+	dictionary.get_typed_value_class_name(),
+	dictionary.get_typed_value_script()
+	)
 	for key in dictionary:
 		result[parse(key)] = parse(dictionary[key])
 	return _create_parsed(TYPE.DICTIONARY, result)

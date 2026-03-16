@@ -12,7 +12,8 @@ func initialize() -> void:
 static func get_unique_path(resource: Resource) -> String:
 	var uuid: String = ""
 	if !resource.resource_path.is_empty():
-		uuid = ResourceUID.path_to_uid(resource.resource_path)
+		uuid = resource.resource_path
+		#uuid = ResourceUID.path_to_uid(resource.resource_path)
 	if uuid.is_empty():
 		_instance.logger.push_error("failed get unique path: %s, %s" % [resource, resource.resource_path])
 	return uuid
@@ -20,8 +21,8 @@ static func get_unique_path(resource: Resource) -> String:
 static func get_unique_id(resource: Resource) -> int:
 	var uuid: String = get_unique_path(resource)
 	var id: int = get_cached().find(uuid)
-	if id < 0:
-		_instance.logger.push_warning("cached unique id was not found: %s" % resource)
+	#if id < 0:
+		#_instance.logger.push_warning("cached unique id was not found: %s" % resource)
 	return id
 
 static func cache(resource: Resource) -> void:

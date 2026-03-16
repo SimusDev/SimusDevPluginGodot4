@@ -8,13 +8,14 @@ func _init() -> void:
 	_settings = SimusNetSettings.get_or_create()
 
 static var __type_and_method: Dictionary[SimusNetSerializer.TYPE, Callable] = {
+	SimusNetSerializer.TYPE.IMAGE: parse_image,
 	SimusNetSerializer.TYPE.OBJECT: parse_object,
 	SimusNetSerializer.TYPE.RESOURCE: parse_resource,
-	SimusNetSerializer.TYPE.IMAGE: parse_image,
 	SimusNetSerializer.TYPE.IDENTITY: parse_identity,
 	SimusNetSerializer.TYPE.NODE: parse_node,
 	SimusNetSerializer.TYPE.ARRAY: parse_array,
 	SimusNetSerializer.TYPE.DICTIONARY: parse_dictionary,
+	SimusNetSerializer.TYPE.CUSTOM: _parse_custom,
 }
 
 static func _create_parsed(variant: Variant) -> Variant:
@@ -22,6 +23,10 @@ static func _create_parsed(variant: Variant) -> Variant:
 		if variant.size() == SimusNetSerializer.ARRAY_SIZE and typeof(variant[0]) == TYPE_INT:
 			return variant[1]
 	return variant
+
+static func _parse_custom(variant: Variant) -> Variant:
+	variant = _create_parsed(variant)
+	return SimusNetCustomSerialization._net_deserialize(variant)
 
 static func parse_object(data: Variant) -> Object:
 	return _create_parsed(data)
@@ -34,7 +39,7 @@ static func parse_resource(data: Variant) -> Resource:
 
 static func parse_image(data: Variant) -> Image:
 	data = _create_parsed(data)
-	data = SimusNetDecompressor.parse_gzip(data)
+	data = SimusNetDecompressor.parse_if_necessary(data)
 	return Image.create_from_data(data.width, 
 	data.height, 
 	data.mipmaps,
@@ -43,7 +48,12 @@ static func parse_image(data: Variant) -> Image:
 	)
 
 static func parse_identity(data: Variant) -> Object:
-	return SimusNetIdentity.try_deserialize_from_variant(_create_parsed(data)).owner
+	var identity: SimusNetIdentity = SimusNetIdentity.try_deserialize_from_variant(_create_parsed(data))
+	if identity:
+		return identity.owner
+	
+	_throw_error("identity not found %s" % data)
+	return null
 
 static func parse_node(data: Variant) -> Node:
 	return SimusNetSingleton.get_instance().get_node(_create_parsed(data))

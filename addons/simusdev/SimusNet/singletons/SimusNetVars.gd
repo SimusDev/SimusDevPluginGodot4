@@ -10,6 +10,8 @@ const BUILTIN_CACHE: PackedStringArray = [
 
 signal on_tick(delta: float)
 
+var _timer: Timer
+
 @export var _processor_send: SimusNetVarsProccessorSend
 static var _instance: SimusNetVars
 
@@ -65,10 +67,16 @@ func initialize() -> void:
 	
 	process_mode = Node.PROCESS_MODE_DISABLED
 	
+	#_timer = Timer.new()
+	#_timer.wait_time = 1.0 / singleton.settings.synchronization_vars_tickrate
+	#_timer.timeout.connect(_on_timer_tick)
+	#add_child(_timer)
 	
 
 static func register(object: Object, properties: PackedStringArray, config: SimusNetVarConfig = SimusNetVarConfig.new()) -> bool:
-	config._initialize(object, properties)
+	var handler: SimusNetVarConfigHandler = SimusNetVarConfigHandler.get_or_create(object)
+	for p in properties:
+		handler._add_cfg(config, p)
 	return true
 
 func _on_connected() -> void:
@@ -83,10 +91,12 @@ var _queue_replicate_unreliable: Dictionary = {}
 var _queue_replicate_server: Dictionary = {}
 
 var _queue_send: Dictionary = {}
-var _queue_send_peers: PackedInt32Array = []
+
+var _queue_send_synced_types: Dictionary[SimusNetSyncedType, Array] = {}
+var _queue_replicate_synced_types: Array[SimusNetSyncedType] = []
+var _queue_replicate_send_synced_types: Dictionary = {}
 
 func _physics_process(delta: float) -> void:
-	
 	if !_queue_replicate.is_empty():
 		_handle_replicate(_queue_replicate, true)
 		_queue_replicate.clear()
@@ -100,25 +110,47 @@ func _physics_process(delta: float) -> void:
 		_queue_replicate_server.clear()
 	
 	if !_queue_send.is_empty():
-		_handle_send(_queue_send, _queue_send_peers)
+		_handle_send(_queue_send)
 		_queue_send.clear()
-		_queue_send_peers.clear()
+	
+	if !_queue_send_synced_types.is_empty():
+		_handle_send_synced_types(_queue_send_synced_types)
+		_queue_send_synced_types.clear()
+	
+	if !_queue_replicate_synced_types.is_empty():
+		_handle_replicate_synced_types(_queue_replicate_synced_types)
+		_queue_replicate_synced_types.clear()
+	
+	if !_queue_replicate_send_synced_types.is_empty():
+		_handle_send_replicate_synced_types(_queue_replicate_send_synced_types)
+		_queue_replicate_send_synced_types.clear()
 	
 	on_tick.emit(delta)
 	
 
 static func replicate(object: Object, properties: PackedStringArray, reliable: bool = true) -> void:
+	if SimusNetConnection.is_server():
+		return
+	
+	if !is_instance_valid(object):
+		return
+	
+	var handler: SimusNetVarConfigHandler = SimusNetVarConfigHandler.get_or_create(object)
+	
 	for p_name in properties:
 		var config: SimusNetVarConfig = SimusNetVarConfig.get_config(object, p_name)
 		if !config:
 			_instance.logger.debug_error("replicate(), cant find config for %s, property: %s" % [object, p_name])
 			continue
 		
-		var validate: bool = await config._validate_replicate()
+		var validate: bool = await config._validate_replicate(handler)
 		if !validate:
 			continue
 		
-		var identity: SimusNetIdentity = config.get_identity()
+		var identity: SimusNetIdentity = handler.get_identity()
+		if !identity.is_ready:
+			await identity.on_ready
+		
 		var packet: Dictionary = _instance._queue_replicate_unreliable
 		if reliable:
 			packet = _instance._queue_replicate
@@ -128,23 +160,32 @@ static func replicate(object: Object, properties: PackedStringArray, reliable: b
 		var p_name_serialized: Variant = try_serialize_into_variant(p_name)
 		if !data_properties.has(p_name_serialized):
 			data_properties.append(p_name_serialized)
-	
+		
 
 func _handle_replicate(data: Dictionary, reliable: bool) -> void:
-	var compressed: Variant = SimusNetCompressor.parse(data)
+	var compressed: Variant = SimusNetCompressor.parse_if_necessary(data)
+	SimusNetProfiler._put_up_packet()
 	if reliable:
 		_replicate_rpc.rpc_id(SimusNet.SERVER_ID, compressed)
 	else:
 		_replicate_rpc_unreliable.rpc_id(SimusNet.SERVER_ID, compressed)
 
 func _replicate_rpc_server(packet: Variant, peer: int, reliable: bool) -> void:
-	var data: Dictionary = SimusNetDecompressor.parse(packet)
+	SimusNetProfiler._put_down_packet()
+	SimusNetProfiler._instance._put_down_traffic(packet.size())
+	
+	var data: Dictionary = SimusNetDecompressor.parse_if_necessary(packet)
 	
 	for identity_id in data:
 		var identity: SimusNetIdentity = SimusNetIdentity.try_deserialize_from_variant(identity_id)
 		if !identity:
 			logger.debug_error("_replicate_rpc_server() identity with %s ID was not found." % identity_id)
 			continue
+		
+		if !identity.owner:
+			continue
+		
+		var handler: SimusNetVarConfigHandler = SimusNetVarConfigHandler.get_or_create(identity.owner)
 		
 		var peer_data: Dictionary = _queue_replicate_server.get_or_add(peer, {})
 		
@@ -154,18 +195,21 @@ func _replicate_rpc_server(packet: Variant, peer: int, reliable: bool) -> void:
 		var identity_data: Dictionary = reliable_data.get_or_add(identity_id, {})
 		
 		for p_name: String in properties:
+			SimusNetVisibility.set_visible_for(peer, identity.owner, true)
+			
 			var config: SimusNetVarConfig = SimusNetVarConfig.get_config(identity.owner, p_name)
 			if !config:
 				continue
 			
-			var validated: bool = await config._validate_replicate_receive(peer)
+			var validated: bool = await config._validate_replicate_receive(handler, peer)
 			if !validated:
 				continue
 			
 			if p_name in identity.owner:
 				identity_data.set(try_serialize_into_variant(p_name), SimusNetSerializer.parse(identity.owner.get(p_name), config._serialize))
-		
-	
+			
+			SimusNetProfiler._instance._put_var_traffic(var_to_bytes(data[identity_id]).size(), identity, p_name, true)
+			
 	
 
 func _handle_replicate_server(data: Dictionary) -> void:
@@ -179,26 +223,39 @@ func _handle_replicate_server(data: Dictionary) -> void:
 				packet.merge(peer_data[reliable])
 			else:
 				packet_unreliable.merge(peer_data[reliable])
-		
+			
 			if !packet.is_empty():
-				_replicate_client_recieve.rpc_id(peer, SimusNetCompressor.parse(packet))
+				var sent: Variant = SimusNetCompressor.parse_if_necessary(packet)
+				_replicate_client_recieve.rpc_id(peer, sent)
+				SimusNetProfiler._put_up_packet()
+				SimusNetProfiler._instance._put_up_traffic(var_to_bytes(sent).size())
 			
 			if !packet_unreliable.is_empty():
-				_replicate_client_recieve_unreliable.rpc_id(peer, SimusNetCompressor.parse(packet_unreliable))
+				var sent: Variant = SimusNetCompressor.parse_if_necessary(packet_unreliable)
+				_replicate_client_recieve_unreliable.rpc_id(peer, sent)
+				SimusNetProfiler._put_up_packet()
+				SimusNetProfiler._instance._put_up_traffic(var_to_bytes(sent).size())
 
 func _replicate_client(packet: Variant) -> void:
-	var data: Dictionary = SimusNetDecompressor.parse(packet)
+	SimusNetProfiler._put_down_packet()
+	SimusNetProfiler._instance._put_down_traffic(packet.size())
+	
+	var data: Dictionary = SimusNetDecompressor.parse_if_necessary(packet)
 	for identity_id in data:
 		var identity: SimusNetIdentity = SimusNetIdentity.try_deserialize_from_variant(identity_id)
-		if identity:
+		if identity and identity.owner:
 			for s_p in data[identity_id]:
 				var property: String = try_deserialize_from_variant(s_p)
-				var config: SimusNetVarConfig = SimusNetVarConfig.get_config(identity.owner, s_p)
-				if !config:
-					continue
-				
-				var value: Variant = SimusNetDeserializer.parse(data[identity_id][s_p], config._serialize)
-				identity.owner.set(property, value)
+				if is_instance_valid(identity.owner):
+					var config: SimusNetVarConfig = SimusNetVarConfig.get_config(identity.owner, property)
+					if !config:
+						continue
+					
+					var value: Variant = SimusNetDeserializer.parse(data[identity_id][s_p], config._serialize)
+					SimusNetProfiler._instance._put_var_traffic(var_to_bytes(data[identity_id][s_p]).size(), identity, property, true)
+					identity.owner.set(property, value)
+		else:
+			logger.debug_error("_replicate_client() cant find identity by %s ID" % identity_id)
 
 @rpc("authority", "call_remote", "reliable", SimusNetChannels.BUILTIN.VARS_RELIABLE)
 func _replicate_client_recieve(packet: Variant) -> void:
@@ -221,48 +278,49 @@ func _replicate_rpc_unreliable(packet: Variant) -> void:
 		_replicate_rpc_server(packet, multiplayer.get_remote_sender_id(), false)
 
 static func send(object: Object, properties: PackedStringArray, reliable: bool = true, log_error: bool = true) -> void:
-	if SimusNet.is_network_authority(object) or SimusNetConnection.is_server():
+	var handler: SimusNetVarConfigHandler = SimusNetVarConfigHandler.get_or_create(object)
+	var changed_properties: Dictionary[StringName, Variant] = SimusNetSynchronization.get_changed_properties(object)
+	for property in properties:
 		
-		var changed_properties: Dictionary[StringName, Variant] = SimusNetSynchronization.get_changed_properties(object)
-		for property in properties:
-			
-			if changed_properties.get_or_add(property, object.get(property)) == object.get(property):
-				continue
-			
-			var config: SimusNetVarConfig = SimusNetVarConfig.get_config(object, property)
-			if !config:
-				_instance.logger.debug_error("send(), cant find config for %s, property: %s" % [object, property])
-				continue
-			
-			var validate: bool = await config._validate_send()
-			if !validate:
-				continue
-			
-			if !config.is_ready:
-				await config.on_ready
-			
-			var identity: SimusNetIdentity = config.get_identity()
-			
-			var channel: Dictionary = _instance._queue_send.get_or_add(config._channel, {})
-			var transfer: Dictionary = channel.get_or_add(reliable, {})
-			
-			var identity_data: Dictionary = transfer.get_or_add(identity.try_serialize_into_variant(), {})
-			
-			identity_data.set(try_serialize_into_variant(property), SimusNetSerializer.parse(identity.owner.get(property), config._serialize))
-			changed_properties.set(property, identity.owner.get(property))
-			
-			for p_id in SimusNetConnection.get_connected_peers():
-				if SimusNetVisibility.is_visible_for(p_id, identity.owner):
-					_instance._queue_send_peers.append(p_id)
+		if changed_properties.get_or_add(property, object.get(property)) == object.get(property):
+			continue
+		
+		var config: SimusNetVarConfig = SimusNetVarConfig.get_config(object, property)
+		if !config:
+			_instance.logger.debug_error("send(), cant find config for %s, property: %s" % [object, property])
+			continue
+		
+		var identity: SimusNetIdentity = handler.get_identity()
+		
+		for p_id in SimusNetConnection.get_connected_peers():
+			if SimusNetVisibility.is_visible_for(p_id, identity.owner):
+				var validate: bool = await config._validate_send(handler, p_id)
+				if !validate:
+					continue
 				
+				var for_peer: Dictionary = _instance._queue_send.get_or_add(p_id, {})
+				var channel: Dictionary = for_peer.get_or_add(config._channel, {})
+				var transfer: Dictionary = channel.get_or_add(reliable, {})
+				
+				var identity_data: Dictionary = transfer.get_or_add(identity.try_serialize_into_variant(), {})
+				
+				var p: Variant = try_serialize_into_variant(property)
+				var v: Variant = SimusNetSerializer.parse(identity.owner.get(property), config._serialize)
+				
+				var size: int = var_to_bytes(p).size() + var_to_bytes(v).size()
+				SimusNetProfiler._instance._put_var_traffic(size, identity, property, false)
+				
+				identity_data.set(p, v)
+				#_instance._queue_send_peers.append(p_id)
+		
+		changed_properties.set(property, identity.owner.get(property))
+		
 
-	else:
-		_instance.logger.debug_error("only network authority can send variables. %s, %s" % [object, properties])
-
-func _handle_send(_queue: Dictionary, peers: PackedInt32Array) -> void:
-	for peer: int in peers:
-		for channel: int in _queue[peer]:
+func _handle_send(_queue: Dictionary) -> void:
+	for peer: int in _queue:
+		for channel: int in _queue.get(peer, {}):
 			for reliable: bool in _queue[peer][channel]:
+				
 				var identity_data: Dictionary = _queue[peer][channel][reliable]
 				
 				var callable: Callable
@@ -272,7 +330,10 @@ func _handle_send(_queue: Dictionary, peers: PackedInt32Array) -> void:
 				else:
 					callable = _send_handle_callables.get(channel, Callable(_processor_send, "_r_s_p_l_u%s" % channel))
 				
-				callable.rpc_id(peer, SimusNetCompressor.parse(identity_data))
+				var bytes: Variant = SimusNetCompressor.parse_if_necessary(identity_data)
+				callable.rpc_id(peer, bytes)
+				SimusNetProfiler._put_up_packet()
+				SimusNetProfiler._instance._put_up_traffic(bytes.size())
 				
 
 @onready var _send_handle_callables: Dictionary[int, Callable] = {
@@ -280,14 +341,15 @@ func _handle_send(_queue: Dictionary, peers: PackedInt32Array) -> void:
 	SimusNetChannels.BUILTIN.VARS_SEND: _processor_send._default_recieve_send_unreliable,
 }
 
-
 func _recieve_send_packet_local(packet: Variant, from_peer: int) -> void:
-	var data: Dictionary = SimusNetDecompressor.parse(packet)
+	SimusNetProfiler._put_down_packet()
+	SimusNetProfiler._instance._put_down_traffic(packet.size())
 	
+	var data: Dictionary = SimusNetDecompressor.parse_if_necessary(packet)
 	
 	for id in data:
 		var identity: SimusNetIdentity = SimusNetIdentity.try_deserialize_from_variant(id)
-		if !identity:
+		if !is_instance_valid(identity) or !is_instance_valid(identity.owner):
 			logger.debug_error("recieve vars from peer(%s), identity with %s ID was not found." % [from_peer, id])
 			continue
 		
@@ -299,8 +361,156 @@ func _recieve_send_packet_local(packet: Variant, from_peer: int) -> void:
 					continue
 				
 				var value: Variant = SimusNetDeserializer.parse(data[id][s_p], config._serialize)
+				SimusNetProfiler._instance._put_var_traffic(var_to_bytes(s_p).size() + var_to_bytes(data[id][s_p]).size(), identity, property, true)
 				identity.owner.set(property, value)
 				
+
+func _replicate_synced_type(type: SimusNetSyncedType) -> void:
+	if SimusNetConnection.is_server():
+		return
+	
+	if !type.is_ready:
+		await type.on_ready
+	
+	_queue_replicate_synced_types.append(type)
+	
+
+func _handle_replicate_synced_types(data: Array[SimusNetSyncedType]) -> void:
+	var packet: Dictionary = {}
+	for i in data:
+		if i.get_owner():
+			packet.set(i.identity.get_unique_id(), i.network_id)
+	
+	if packet.is_empty():
+		return
+	
+	var bytes: Variant = var_to_bytes(packet)
+	var size: int = bytes.size()
+	bytes = bytes.compress(FileAccess.CompressionMode.COMPRESSION_ZSTD)
+	_server_receive_synced_types_from_client.rpc_id(SimusNet.SERVER_ID, bytes, size)
+
+@rpc("any_peer", "call_remote", "reliable", SimusNetChannels.BUILTIN.SYNCED_TYPES)
+func _server_receive_synced_types_from_client(bytes: Variant, uncompressed_size: int) -> void:
+	bytes = bytes.decompress(uncompressed_size, FileAccess.CompressionMode.COMPRESSION_ZSTD)
+	var packet: Dictionary = bytes_to_var(bytes)
+	
+	for id in packet:
+		var identity: SimusNetIdentity = SimusNetIdentity.get_dictionary_by_unique_id().get(id)
+		if !identity:
+			continue
+		
+		if !identity.owner:
+			continue
+		
+		SimusNetVisibility.set_visible_for(multiplayer.get_remote_sender_id(), identity.owner, true)
+		
+		var handler: SimusNetSyncedTypeHandler = SimusNetSyncedTypeHandler.get_or_create(identity.owner)
+		var synced_type: SimusNetSyncedType = handler.get_synced_type_by_id(packet[id])
+		if !synced_type:
+			continue
+		
+		var to_peer_data: Dictionary = _queue_replicate_send_synced_types.get_or_add(multiplayer.get_remote_sender_id(), {})
+		var identity_data: Dictionary = to_peer_data.get_or_add(identity.get_unique_id(), {})
+		identity_data.set(synced_type.network_id, synced_type._start_replicate_serialize())
+	
+
+func _handle_send_replicate_synced_types(data: Dictionary) -> void:
+	if !SimusNetConnection.is_server():
+		return
+	
+	for p_id: int in data:
+		var peer_data: Dictionary = data[p_id]
+		var bytes: Variant = var_to_bytes(peer_data)
+		var size: int = bytes.size()
+		bytes = bytes.compress(FileAccess.CompressionMode.COMPRESSION_ZSTD)
+		_receive_replication_from_server.rpc_id(p_id, bytes, size)
+		
+
+@rpc("authority", "call_remote", "reliable", SimusNetChannels.BUILTIN.SYNCED_TYPES)
+func _receive_replication_from_server(bytes: Variant, uncompressed_size: int) -> void:
+	bytes = bytes.decompress(uncompressed_size, FileAccess.CompressionMode.COMPRESSION_ZSTD)
+	var data: Dictionary = bytes_to_var(bytes)
+	
+	for identity_id: int in data:
+		var identity: SimusNetIdentity = SimusNetIdentity.get_dictionary_by_unique_id().get(identity_id)
+		if !identity:
+			continue
+		
+		if !identity.owner:
+			continue
+		
+		var handler: SimusNetSyncedTypeHandler = SimusNetSyncedTypeHandler.get_or_create(identity.owner)
+		
+		for sync_id: int in data[identity_id]:
+			var synced_type: SimusNetSyncedType = handler.get_synced_type_by_id(sync_id)
+			if !synced_type:
+				continue
+			
+			var serialized: Variant = data[identity_id][sync_id]
+			synced_type._on_replication_received(synced_type._start_replicate_deserialize(serialized))
+
+func _update_send_synced_type(type: SimusNetSyncedType) -> void:
+	if !type.is_ready:
+		await type.on_ready
+	
+	var changes: Array = _queue_send_synced_types.get_or_add(type, [])
+	changes.append_array(type.___changes)
+
+func _handle_send_synced_types(data: Dictionary[SimusNetSyncedType, Array]) -> void:
+	var packet: Dictionary = {}
+	
+	for i in data:
+		if i.get_owner():
+			var changes: Array = data[i]
+			var visible: SimusNetVisible = SimusNetVisible.get_or_create(i.get_owner())
+			
+			for peer_id in SimusNetConnection.get_connected_peers():
+				if !visible.is_visible_for(peer_id):
+					continue
+				
+				if i._validate_send(peer_id):
+					var peer_data: Dictionary = packet.get_or_add(peer_id, {})
+					var identity_data: Dictionary = peer_data.get_or_add(i.identity.get_unique_id(), {})
+					identity_data.set(i.network_id, changes)
+	
+	if packet.is_empty():
+		return
+	
+	for p_id: int in packet:
+		var bytes: Variant = var_to_bytes(packet[p_id])
+		var size: int = bytes.size()
+		bytes = bytes.compress(FileAccess.CompressionMode.COMPRESSION_ZSTD)
+		_receive_sent_synced_types.rpc_id(p_id, bytes, size)
+
+@rpc("any_peer", "call_remote", "reliable", SimusNetChannels.BUILTIN.SYNCED_TYPES)
+func _receive_sent_synced_types(bytes: Variant, uncompressed_size: int) -> void:
+	var sender: int = multiplayer.get_remote_sender_id()
+	bytes = bytes.decompress(uncompressed_size, FileAccess.CompressionMode.COMPRESSION_ZSTD)
+	
+	var data: Dictionary = bytes_to_var(bytes)
+	
+	for id: int in data:
+		var identity: SimusNetIdentity = SimusNetIdentity.get_dictionary_by_unique_id().get(id)
+		if !identity:
+			continue
+		
+		if !identity.owner:
+			continue
+		
+		var handler: SimusNetSyncedTypeHandler = SimusNetSyncedTypeHandler.get_or_create(identity.owner)
+		
+		for sync_id: int in data[id]:
+			var synced_type: SimusNetSyncedType = handler.get_synced_type_by_id(sync_id)
+			if !synced_type:
+				continue
+			
+			if !synced_type._validate_receive(sender):
+				continue
+			
+			var changes: Array = data[id][sync_id]
+			synced_type._on_changes_received(changes)
+		
+	
 
 static func cache(property: String) -> void:
 	if SimusNetConnection.is_server():

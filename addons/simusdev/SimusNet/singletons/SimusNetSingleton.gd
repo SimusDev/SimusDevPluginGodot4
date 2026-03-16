@@ -3,6 +3,7 @@ class_name SimusNetSingleton
 
 @onready var settings: SimusNetSettings = SimusNetSettings.get_or_create()
 
+@export var profiler: SimusNetProfiler
 @export var events: SimusNetEvents
 @export var cache: SimusNetCache
 @export var channels: SimusNetChannels
@@ -21,7 +22,7 @@ var info: Node
 
 var api: SceneMultiplayer
 
-static var __static_class_list: Array[Object] = [
+var __static_class_list: Array[Object] = [
 	SimusNet.new(),
 	SimusNetSerializer.new(),
 	SimusNetDeserializer.new(),

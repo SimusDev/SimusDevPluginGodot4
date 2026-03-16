@@ -1,4 +1,5 @@
 @static_unload
+#@tool
 extends RefCounted
 class_name SD_ECS
 
@@ -41,13 +42,18 @@ static func append_to_anyway(object: Object, component: Variant) -> void:
 	get_components_from(object).append(component)
 
 static func get_components_from(object: Object) -> Array:
+	if !is_instance_valid(object):
+		_debug_log_from_object(object, "%s cant get components from null!" % object, SD_ConsoleCategories.ERROR)
+		return []
+		
 	if object.has_method(METHOD):
 		var value: Variant = object.call(METHOD)
 		if value is Array:
 			return value
 		_debug_log_from_object(object, "%s must return an Array!" % METHOD, SD_ConsoleCategories.ERROR)
-	else:
-		_debug_log_from_object(object, "method %s was not found." % METHOD, SD_ConsoleCategories.WARNING)
+	
+	if Engine.is_editor_hint():
+		return []
 	
 	if object.has_meta(META):
 		return object.get_meta(META)
@@ -69,6 +75,9 @@ static func find_base_script(script: Script, recursive: bool = true) -> Script:
 		return find_base_script(script.get_base_script())
 	return base
 
+static func is_script_extends(script: Script, _extends: Script) -> bool:
+	return find_base_script(script) == _extends or script == _extends
+
 static func queue_free_components(from: Object) -> void:
 	var components: Array = get_components_from(from)
 	for i in components:
@@ -78,16 +87,17 @@ static func queue_free_components(from: Object) -> void:
 
 static func find_components_by_script(from: Object, by: Array[Script], pick: PICK_RETURN = PICK_RETURN.ARRAY) -> Variant:
 	var components: Array = get_components_from(from)
+	
 	var filtered: Array = components.filter(
 		func(i: Variant):
-			var is_object: bool = i is Object
-			if is_object:
-				return by.has(i.get_script()) or by.has(find_base_script(i.get_script()))
+			if is_instance_valid(i):
+				var is_object: bool = i is Object
+				if is_object:
+					return by.has(i.get_script()) or by.has(find_base_script(i.get_script()))
 			return false
 	)
 	
 	return _return_filtered(filtered, pick)
-	
 
 static func find_components_by_class(from: Object, by: Array[StringName], pick: PICK_RETURN = PICK_RETURN.ARRAY) -> Variant:
 	var components: Array = get_components_from(from)
@@ -138,3 +148,64 @@ static func node_find_above_by_script(from: Node, script: Script) -> Node:
 		return null
 	
 	return node_find_above_by_script(from.get_parent(), script)
+
+static func node_find_above_by_component(from: Node, component: Script) -> Node:
+	var founded = find_first_component_by_script(from, [component])
+	if founded:
+		return founded
+	
+	if from == SimusDev.get_tree().root:
+		return null
+	
+	return node_find_above_by_component(from.get_parent(), component)
+
+static func node_find_above_by_class(from: Node, classname: String) -> Node:
+	if from.get_script():
+		if from.get_script() is Script:
+			if from.get_script().get_global_name() == classname:
+				return from
+	
+	if from.get_class() == classname:
+		return from
+	
+	if from == SimusDev.get_tree().root:
+		return null
+	
+	return node_find_above_by_class(from.get_parent(), classname)
+
+
+static func find_children_by_script(node: Node, script: Script, recursive: bool = true) -> Array[Node]:
+	var result: Array[Node] = []
+	_find_children_by_script_internal(result, node, script, recursive)
+	return result
+
+static func find_children_by_scripts(node: Node, scripts: Array[Script], recursive: bool = true) -> Array[Node]:
+	var result: Array[Node] = []
+	for script in scripts:
+		_find_children_by_script_internal(result, node, script, recursive)
+	return result
+
+static func _find_children_by_script_internal(array: Array[Node], node: Node, script: Script, recursive: bool = true) -> void:
+	for child in node.get_children():
+		if is_script_extends(child.get_script(), script):
+			array.append(child)
+		
+		_find_children_by_script_internal(array, child, script, recursive)
+
+static func find_children_by_class(node: Node, name: String, recursive: bool = true) -> Array[Node]:
+	var result: Array[Node] = []
+	_find_children_by_class_internal(result, node, name, recursive)
+	return result
+
+static func find_children_by_classes(node: Node, names: Array[String], recursive: bool = true) -> Array[Node]:
+	var result: Array[Node] = []
+	for name in names:
+		_find_children_by_class_internal(result, node, name, recursive)
+	return result
+
+static func _find_children_by_class_internal(array: Array[Node], node: Node, name: String, recursive: bool = true) -> void:
+	for child in node.get_children():
+		if child.get_class() == name:
+			array.append(child)
+		
+		_find_children_by_class_internal(array, child, name, recursive)
