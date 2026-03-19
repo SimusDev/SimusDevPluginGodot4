@@ -237,8 +237,14 @@ func _handle_replicate_server(data: Dictionary) -> void:
 				SimusNetProfiler._instance._put_up_traffic(var_to_bytes(sent).size())
 
 func _replicate_client(packet: Variant) -> void:
+	var bytes: PackedByteArray
+	if packet is PackedByteArray:
+		bytes = packet
+	else:
+		bytes = var_to_bytes(packet)
+	
 	SimusNetProfiler._put_down_packet()
-	SimusNetProfiler._instance._put_down_traffic(packet.size())
+	SimusNetProfiler._instance._put_down_traffic(bytes.size())
 	
 	var data: Dictionary = SimusNetDecompressor.parse_if_necessary(packet)
 	for identity_id in data:
@@ -277,12 +283,18 @@ func _replicate_rpc_unreliable(packet: Variant) -> void:
 	if SimusNetConnection.is_server():
 		_replicate_rpc_server(packet, multiplayer.get_remote_sender_id(), false)
 
+static func _hook_snapshot(data: Dictionary[StringName, Variant], property: String, object: Object) -> bool:
+	var value: Variant = object.get(property)
+	if (value is Array) or (value is Dictionary):
+		value = value.duplicate()
+	return data.get_or_add(property, value) == object.get(property)
+
 static func send(object: Object, properties: PackedStringArray, reliable: bool = true, log_error: bool = true) -> void:
 	var handler: SimusNetVarConfigHandler = SimusNetVarConfigHandler.get_or_create(object)
 	var changed_properties: Dictionary[StringName, Variant] = SimusNetSynchronization.get_changed_properties(object)
 	for property in properties:
 		
-		if changed_properties.get_or_add(property, object.get(property)) == object.get(property):
+		if _hook_snapshot(changed_properties, property, object):
 			continue
 		
 		var config: SimusNetVarConfig = SimusNetVarConfig.get_config(object, property)
@@ -307,8 +319,8 @@ static func send(object: Object, properties: PackedStringArray, reliable: bool =
 				var p: Variant = try_serialize_into_variant(property)
 				var v: Variant = SimusNetSerializer.parse(identity.owner.get(property), config._serialize)
 				
-				var size: int = var_to_bytes(p).size() + var_to_bytes(v).size()
-				SimusNetProfiler._instance._put_var_traffic(size, identity, property, false)
+				#var size: int = var_to_bytes(p).size() + var_to_bytes(v).size()
+				#SimusNetProfiler._instance._put_var_traffic(size, identity, property, false)
 				
 				identity_data.set(p, v)
 				#_instance._queue_send_peers.append(p_id)
@@ -330,8 +342,14 @@ func _handle_send(_queue: Dictionary) -> void:
 				else:
 					callable = _send_handle_callables.get(channel, Callable(_processor_send, "_r_s_p_l_u%s" % channel))
 				
-				var bytes: Variant = SimusNetCompressor.parse_if_necessary(identity_data)
-				callable.rpc_id(peer, bytes)
+				var packet: Variant = SimusNetCompressor.parse_if_necessary(identity_data)
+				var bytes: PackedByteArray
+				if packet is PackedByteArray:
+					bytes = packet
+				else:
+					bytes = var_to_bytes(packet)
+				
+				callable.rpc_id(peer, packet)
 				SimusNetProfiler._put_up_packet()
 				SimusNetProfiler._instance._put_up_traffic(bytes.size())
 				
@@ -342,8 +360,14 @@ func _handle_send(_queue: Dictionary) -> void:
 }
 
 func _recieve_send_packet_local(packet: Variant, from_peer: int) -> void:
+	var bytes: PackedByteArray
+	if packet is PackedByteArray:
+		bytes = packet
+	else:
+		bytes = var_to_bytes(packet)
+	
 	SimusNetProfiler._put_down_packet()
-	SimusNetProfiler._instance._put_down_traffic(packet.size())
+	SimusNetProfiler._instance._put_down_traffic(bytes.size())
 	
 	var data: Dictionary = SimusNetDecompressor.parse_if_necessary(packet)
 	

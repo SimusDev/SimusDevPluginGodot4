@@ -1,11 +1,23 @@
 extends RefCounted
 class_name SimusNetRPCConfigHandler
 
-var _list_by_name: Dictionary[String, SimusNetRPCConfig] = {}
+var _list_by_name: Dictionary[StringName, SimusNetRPCConfig] = {}
+var _list_by_unique_id: Dictionary[int, SimusNetRPCConfig] = {}
+
+var _callables: Dictionary[StringName, Callable] = {}
 
 var _object: Object : get = get_object
 
 const META: StringName = "SimusNetRPCConfigHandler"
+
+func get_method_unique_id(method: StringName) -> int:
+	return _list_by_name.keys().find(method)
+
+func get_method_name_by_unique_id(id: int) -> StringName:
+	return _list_by_name.keys().get(id)
+
+func get_callable_by_method_name(name: StringName) -> Variant:
+	return _callables.get(name, null)
 
 func get_object() -> Object:
 	if !is_instance_valid(_object):
@@ -36,7 +48,7 @@ func _initialize() -> void:
 
 func _network_ready() -> void:
 	for c_name in _list_by_name:
-		SimusNetMethods.cache_by_name(c_name)
+		#SimusNetMethods.cache_by_name(c_name)
 		_list_by_name[c_name]._network_ready(self)
 
 func _network_disconnect() -> void:

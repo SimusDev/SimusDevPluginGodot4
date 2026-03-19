@@ -161,8 +161,6 @@ func _set_ready() -> void:
 func _tree_exited() -> void:
 	is_initialized = false
 	
-	_parse_and_clear_identities_with_no_owner()
-	
 	get_dictionary_by_generated_id().erase(get_generated_unique_id())
 	#if SimusNetConnection.is_server():
 		#print("removing: ", get_generated_unique_id())
@@ -170,14 +168,6 @@ func _tree_exited() -> void:
 	if owner:
 		SimusNetVisibility._local_identity_delete(self)
 	
-
-static func _parse_and_clear_identities_with_no_owner() -> void:
-	var i: Dictionary[int, SimusNetIdentity] = get_dictionary_by_unique_id()
-	for id: int in i:
-		var identity: SimusNetIdentity = i[id]
-		if !identity.owner:
-			i.erase(id)
-			
 
 func get_generated_unique_id() -> Variant:
 	return _generated_unique_id
@@ -224,5 +214,7 @@ static func deserialize_unique_id_into_int(bytes: PackedByteArray) -> int:
 static func try_find_in(object: Variant) -> SimusNetIdentity:
 	if object is Object:
 		if object.has_meta("SimusNetIdentity"):
-			return object.get_meta("SimusNetIdentity")
+			var i: SimusNetIdentity = object.get_meta("SimusNetIdentity")
+			if i.owner:
+				return i 
 	return null

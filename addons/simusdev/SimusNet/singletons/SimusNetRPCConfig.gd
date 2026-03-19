@@ -13,6 +13,8 @@ signal on_ready()
 
 func _initialize(handler: SimusNetRPCConfigHandler, callable: Callable) -> void:
 	handler._list_by_name[callable.get_method()] = self
+	handler._list_by_unique_id[handler.get_method_unique_id(callable.get_method())] = self
+	handler._callables[callable.get_method()] = callable
 	
 	_initialize_dynamic(handler)
 
@@ -49,6 +51,13 @@ func flag_get_channel_id() -> int:
 
 func flag_get_transfer_mode() -> SimusNetRPC.TRANSFER_MODE:
 	return _transfer_mode
+
+func flag_get_transfer_mode_multiplayer_peer() -> MultiplayerPeer.TransferMode:
+	if _transfer_mode == SimusNetRPC.TRANSFER_MODE.RELIABLE:
+		return MultiplayerPeer.TRANSFER_MODE_RELIABLE
+	if _transfer_mode == SimusNetRPC.TRANSFER_MODE.UNRELIABLE:
+		return MultiplayerPeer.TRANSFER_MODE_UNRELIABLE
+	return MultiplayerPeer.TRANSFER_MODE_UNRELIABLE_ORDERED
 
 #//////////////////////////////////////////////////////////////
 
