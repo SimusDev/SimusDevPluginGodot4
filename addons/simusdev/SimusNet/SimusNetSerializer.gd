@@ -8,6 +8,16 @@ static var _buffer: StreamPeerBuffer = StreamPeerBuffer.new()
 
 const ARRAY_SIZE: int = 2
 
+const BLACKLIST: Array[int] = [
+	TYPE_INT,
+	TYPE_FLOAT,
+	TYPE_PACKED_BYTE_ARRAY,
+	TYPE_BOOL,
+	TYPE_ARRAY,
+	TYPE_DICTIONARY,
+	TYPE_STRING,
+]
+
 static func is_object_has_custom_serialization(object: Object) -> bool:
 	return object.has_method(SimusNetCustomSerialization.METHOD_SERIALIZE) and \
 	object.has_method(SimusNetCustomSerialization.METHOD_DESERIALIZE)
@@ -33,6 +43,7 @@ enum TYPE {
 	DICTIONARY,
 	CUSTOM,
 	STRING_NAME,
+	VAR,
 }
 
 static var __class_and_method: Dictionary[StringName, Callable] = {
@@ -63,7 +74,9 @@ static func parse(variant: Variant, try: bool = true) -> Variant:
 	if variant is Object:
 		cls = variant.get_class()
 	
-	var type_string: String = type_string(typeof(variant))
+	var type: int = typeof(variant)
+
+	var type_string: String = type_string(type)
 	
 	var parsable: bool = false
 	for c in __class_and_method:
@@ -74,14 +87,10 @@ static func parse(variant: Variant, try: bool = true) -> Variant:
 				#print(variant, " : ", parsable, __class_and_method[c])
 			return parsed
 	
-	if !parsable:
+	if BLACKLIST.has(type):
 		return variant
 	
-	if parsed.size() <= 1:
-		_throw_error("failed to serialize: (%s), %s" % [type_string, variant])
-		return variant
-	
-	return variant
+	return parse_var(variant)
 
 static func _parse_custom(variant: Object) -> PackedByteArray:
 	var serialization := SimusNetCustomSerialization.new()
@@ -203,7 +212,7 @@ static func parse_array(array: Array) -> PackedByteArray:
 	return _buffer.data_array
 
 static func parse_dictionary(dictionary: Dictionary) -> PackedByteArray:
-	var result: Dictionary = Dictionary({}, 
+	var result: Dictionary = Dictionary({},
 	dictionary.get_typed_key_builtin(),
 	dictionary.get_typed_key_class_name(),
 	dictionary.get_typed_key_script(),
@@ -225,7 +234,25 @@ static func parse_string_name(string: StringName) -> PackedByteArray:
 	_buffer.put_var(string)
 	return _buffer.data_array
 
+static func parse_arguments(args: Array, serialization: bool = true) -> PackedByteArray:
+	if serialization:
+		var parsed: Array = []
+		for i in args:
+			parsed.append(parse(i))
+		return SimusNetArguments.serialize(parsed)
+	return SimusNetArguments.serialize(args)
+
+static func parse_var(variant: Variant) -> PackedByteArray:
+	_buffer.clear()
+	_buffer.put_u8(TYPE.VAR)
+	_buffer.put_var(variant)
+	return _buffer.data_array
+
 static func test() -> void:
+	var variant: PackedByteArray = SimusNetSerializer.parse_var(Transform3D())
+	print("variant: %s bytes" % variant.size())
+	print(SimusNetDeserializer.parse(variant))
+	
 	var resource: PackedByteArray = SimusNetSerializer.parse_resource(SimusNetSingleton.get_instance().get_script())
 	print("resource: %s bytes" % resource.size())
 	print(SimusNetDeserializer.parse(resource))

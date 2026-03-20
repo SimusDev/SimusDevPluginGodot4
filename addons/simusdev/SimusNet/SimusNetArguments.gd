@@ -1,6 +1,6 @@
-# Оптимизированный сериализатор для сетевого плагина с поддержкой double
 @static_unload
 class_name SimusNetArguments
+# Оптимизированный сериализатор для сетевого плагина с поддержкой double и bool
 
 # Типы данных (используем 4 бита)
 enum TYPES {
@@ -17,7 +17,11 @@ enum TYPES {
 	ZERO_FLOAT = 10,
 	ONE_FLOAT = 11,
 	STRING = 12,
+	BOOL_FALSE = 13,   # false
+	BOOL_TRUE = 14,    # true
 }
+
+
 
 const FLOAT_PRECISION_THRESHOLD := 0.000001
 
@@ -76,6 +80,13 @@ static func _needs_double_precision(val: float) -> bool:
 # Сериализация Variant
 static func _serialize_variant(v, data: PackedByteArray) -> PackedByteArray:
 	match typeof(v):
+		TYPE_BOOL:
+			var val := v as bool
+			if val:
+				data.append(TYPES.BOOL_TRUE << 4)
+			else:
+				data.append(TYPES.BOOL_FALSE << 4)
+		
 		TYPE_INT:
 			var val := v as int
 			
@@ -164,6 +175,12 @@ static func _deserialize_variant(data: PackedByteArray, pos: int, out_wrapper: A
 		return pos - 1
 	
 	match type:
+		TYPES.BOOL_FALSE:
+			out_wrapper[0] = false
+		
+		TYPES.BOOL_TRUE:
+			out_wrapper[0] = true
+		
 		TYPES.ZERO_INT:
 			out_wrapper[0] = 0
 		

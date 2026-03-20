@@ -22,6 +22,7 @@ static var __type_and_method: Dictionary[SimusNetSerializer.TYPE, Callable] = {
 	SimusNetSerializer.TYPE.CUSTOM: _parse_custom,
 	SimusNetSerializer.TYPE.NULL: parse_null,
 	SimusNetSerializer.TYPE.STRING_NAME : parse_string_name,
+	SimusNetSerializer.TYPE.VAR: parse_var,
 }
 
 static func _parse_custom(data: PackedByteArray) -> Variant:
@@ -167,6 +168,11 @@ static func parse_string_name(data: PackedByteArray) -> StringName:
 	var type: SimusNetSerializer.TYPE = _buffer.get_u8()
 	return _buffer.get_var()
 
+static func parse_var(data: PackedByteArray) -> Variant:
+	_buffer.data_array = data
+	var type: SimusNetSerializer.TYPE = _buffer.get_u8()
+	return _buffer.get_var()
+
 static func parse(variant: Variant, try: bool = true) -> Variant:
 	if !try:
 		return variant
@@ -179,6 +185,15 @@ static func parse(variant: Variant, try: bool = true) -> Variant:
 			return __type_and_method[type].call(variant)
 	
 	return variant
+
+static func parse_arguments(bytes: PackedByteArray, deserialization: bool = true) -> Array:
+	var deserialized: Array = SimusNetArguments.deserialize(bytes)
+	if deserialization:
+		var parsed: Array = []
+		for i in deserialized:
+			parsed.append(parse(i))
+		return parsed
+	return deserialized
 
 static func _throw_error(...args: Array) -> void:
 	if _settings.debug_enable:
