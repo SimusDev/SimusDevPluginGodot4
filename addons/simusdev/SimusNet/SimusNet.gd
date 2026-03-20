@@ -6,6 +6,7 @@ const SERVER_ID: int = 1
 
 enum PACKET {
 	RPC,
+	RPC_ASYNC_RECEIVE,
 	VARIABLE,
 }
 

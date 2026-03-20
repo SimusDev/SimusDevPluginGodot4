@@ -131,9 +131,19 @@ func flag_mode_any_peer() -> SimusNetRPCConfig:
 	_mode = MODE.ANY_PEER
 	return self
 
+var _simulate: bool = true
+func flag_simulate_locally(simulate: bool = true) -> SimusNetRPCConfig:
+	_simulate = simulate
+	return self
+
 var _serialization: bool = false
 func flag_serialization(value: bool = true) -> SimusNetRPCConfig:
 	_serialization = value
+	return self
+
+var _async: bool = false
+func flag_async(value: bool = true) -> SimusNetRPCConfig:
+	_async = value
 	return self
 
 #//////////////////////////////////////////////////////////////

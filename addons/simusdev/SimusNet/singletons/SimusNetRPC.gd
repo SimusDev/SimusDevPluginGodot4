@@ -57,7 +57,7 @@ static func invoke(callable: Callable, ...args: Array) -> void:
 
 static func invoke_all(callable: Callable, ...args: Array) -> void:
 	_instance._invoke(callable, args)
-	callable.callv(args)
+	_instance._invoke_on(SimusNetConnection.get_unique_id(), callable, args)
 
 func _invoke(callable: Callable, args: Array) -> void:
 	if !SimusNetConnection.is_active():
@@ -77,12 +77,12 @@ func _invoke(callable: Callable, args: Array) -> void:
 		else:
 			_try_invoke_by_visibility(id, visibility, callable, args, config)
 
-func _try_invoke_by_visibility(peer: int, visible: SimusNetVisible, callable: Callable, args: Array, config: SimusNetRPCConfig) -> void:
+func _try_invoke_by_visibility(peer: int, visible: SimusNetVisible, callable: Callable, args: Array, config: SimusNetRPCConfig, async: bool = false) -> void:
 	if visible.is_visible_for(peer):
 		_invoke_on_without_validating(peer, callable, args, config)
 		return
 
-func _invoke_on_without_validating(peer: int, callable: Callable, args: Array, config: SimusNetRPCConfig) -> void:
+func _invoke_on_without_validating(peer: int, callable: Callable, args: Array, config: SimusNetRPCConfig, async: bool = false) -> void:
 	if !SimusNetConnection.is_active():
 		return
 	
@@ -209,7 +209,20 @@ static func invoke_on_server(callable: Callable, ...args: Array) -> void:
 static func invoke_on_sender(callable: Callable, ...args: Array) -> void:
 	_instance._invoke_on(SimusNetRemote.sender_id, callable, args)
 
-func _invoke_on(peer: int, callable: Callable, args: Array) -> void:
+static func async_invoke_on(peer: int, callable: Callable, ...args: Array) -> Variant:
+	return await _instance._async_invoke_on(peer, callable, args)
+
+static func async_invoke_on_server(callable: Callable, ...args: Array) -> Variant:
+	return await _instance._async_invoke_on(SimusNetConnection.SERVER_ID, callable, args)
+
+static func async_invoke_on_sender(callable: Callable, ...args: Array) -> Variant:
+	return await _instance._async_invoke_on(SimusNetRemote.sender_id, callable, args)
+
+func _async_invoke_on(peer: int, callable: Callable, args: Array) -> Variant:
+	return await _invoke_on(peer, callable, args, true)
+
+func _invoke_on(peer: int, callable: Callable, args: Array, async: bool = false) -> Variant:
+	var handler: SimusNetRPCConfigHandler = SimusNetRPCConfigHandler.get_or_create(callable.get_object())
 	var config: SimusNetRPCConfig = await _validate_callable(callable, false, peer)
 	if !config:
 		return
@@ -218,12 +231,45 @@ func _invoke_on(peer: int, callable: Callable, args: Array) -> void:
 		if is_cooldown_active(callable):
 			return
 		
+		var serialized_args: Array = []
+		var bytes: PackedByteArray = []
+		if config._simulate and config._serialization:
+			for i in args:
+				serialized_args.append(SimusNetSerializer.parse(i))
+				
+			bytes = SimusNetArguments.serialize(serialized_args)
+		
 		SimusNetRemote.sender_id = peer
-		callable.callv(args)
 		_start_cooldown(callable)
-		return
+		
+		if bytes.is_empty():
+			return callable.callv(args)
+		else:
+			var deserialized: Array = SimusNetArguments.deserialize(bytes)
+			var d_args: Array = []
+			for i in deserialized:
+				d_args.append(SimusNetDeserializer.parse(i))
+			
+			return callable.callv(d_args)
+		
+		return null
 	
-	_invoke_on_without_validating(peer, callable, args, config)
+	if async:
+		return await _await_async_and_get_variant(handler, config, callable)
+	
+	_invoke_on_without_validating(peer, callable, args, config, async)
+	return null
+
+func _await_async_and_get_variant(handler: SimusNetRPCConfigHandler, config: SimusNetRPCConfig, callable: Callable) -> Variant:
+	if !is_instance_valid(handler) or !handler.get_object():
+		return null
+	
+	await handler._async_received
+	
+	if callable.is_valid() and !callable.is_null():
+		if handler._async_method == callable.get_method():
+			return handler._async_args
+	return await _await_async_and_get_variant(handler, config, callable)
 
 const _META_COOLDOWN: String = "netrpcs_cooldown"
 

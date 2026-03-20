@@ -32,6 +32,7 @@ enum TYPE {
 	ARRAY,
 	DICTIONARY,
 	CUSTOM,
+	STRING_NAME,
 }
 
 static var __class_and_method: Dictionary[StringName, Callable] = {
@@ -39,6 +40,7 @@ static var __class_and_method: Dictionary[StringName, Callable] = {
 	"Object": parse_object,
 	"Array": parse_array,
 	"Dictionary": parse_dictionary,
+	"StringName": parse_string_name,
 }
 
 static var _resource_class_and_method: Dictionary[StringName, Callable] = {
@@ -72,8 +74,6 @@ static func parse(variant: Variant, try: bool = true) -> Variant:
 				#print(variant, " : ", parsable, __class_and_method[c])
 			return parsed
 	
-	
-	
 	if !parsable:
 		return variant
 	
@@ -88,12 +88,14 @@ static func _parse_custom(variant: Object) -> PackedByteArray:
 	if variant.has_method(SimusNetCustomSerialization.METHOD_SERIALIZE):
 		variant.call(SimusNetCustomSerialization.METHOD_SERIALIZE, serialization)
 	var script: Script = variant.get_script()
+	#SimusNetResources.cache(script)
 	var bytes: PackedByteArray = PackedByteArray()
 	var buffer: StreamPeerBuffer = StreamPeerBuffer.new()
 	buffer.data_array = bytes
 	buffer.put_u8(TYPE.CUSTOM)
 	buffer.put_utf8_string(ResourceUID.path_to_uid(script.resource_path).replacen("uid://", ""))
 	buffer.put_var(SimusNetSerializer.parse(serialization.get_data()))
+	#print(ResourceUID.path_to_uid(script.resource_path).to_utf8_buffer().hex_encode())
 	return buffer.data_array
 
 static func parse_object(variant: Object) -> PackedByteArray:
@@ -215,6 +217,12 @@ static func parse_dictionary(dictionary: Dictionary) -> PackedByteArray:
 	_buffer.clear()
 	_buffer.put_u8(TYPE.DICTIONARY)
 	_buffer.put_var(result)
+	return _buffer.data_array
+
+static func parse_string_name(string: StringName) -> PackedByteArray:
+	_buffer.clear()
+	_buffer.put_u8(TYPE.STRING_NAME)
+	_buffer.put_var(string)
 	return _buffer.data_array
 
 static func test() -> void:

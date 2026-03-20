@@ -3,8 +3,8 @@ class_name SimusNetVarConfigHandler
 
 const _META: StringName = &"simusnet_var_config"
 
-var _object: Object
-var _identity: SimusNetIdentity
+var _object_weak_ref: WeakRef
+var _identity_weak_ref: WeakRef
 
 var _list: Dictionary[StringName, SimusNetVarConfig] = {}
 var _properties_for: Dictionary[SimusNetVarConfig, PackedStringArray]
@@ -21,12 +21,10 @@ func get_properties_for(cfg: SimusNetVarConfig) -> PackedStringArray:
 	return _properties_for.get(cfg, PackedStringArray())
 
 func get_object() -> Object:
-	if !is_instance_valid(_object):
-		_object = null
-	return _object
+	return _object_weak_ref.get_ref() 
 
 func get_identity() -> SimusNetIdentity:
-	return _identity
+	return _identity_weak_ref.get_ref()
 
 func _add_cfg(cfg: SimusNetVarConfig, property: StringName) -> void:
 	_list[property] = cfg
@@ -48,8 +46,8 @@ func _initialize_dynamic() -> void:
 	if !SimusNetConnection.is_active():
 		await SimusNetEvents.event_connected.published
 	
-	if !_identity.is_ready:
-		await _identity.on_ready
+	if !get_identity().is_ready:
+		await get_identity().on_ready
 	
 	_network_ready()
 
@@ -93,8 +91,8 @@ static func get_or_create(object: Object) -> SimusNetVarConfigHandler:
 		return founded
 	
 	var new: SimusNetVarConfigHandler = SimusNetVarConfigHandler.new()
-	new._object = object
+	new._object_weak_ref = weakref(object)
+	new._identity_weak_ref = weakref(SimusNetIdentity.register(object))
 	object.set_meta(_META, new)
-	new._identity = SimusNetIdentity.register(object)
 	new._initialize()
 	return new

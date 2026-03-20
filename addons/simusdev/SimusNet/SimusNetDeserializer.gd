@@ -21,6 +21,7 @@ static var __type_and_method: Dictionary[SimusNetSerializer.TYPE, Callable] = {
 	SimusNetSerializer.TYPE.DICTIONARY: parse_dictionary,
 	SimusNetSerializer.TYPE.CUSTOM: _parse_custom,
 	SimusNetSerializer.TYPE.NULL: parse_null,
+	SimusNetSerializer.TYPE.STRING_NAME : parse_string_name,
 }
 
 static func _parse_custom(data: PackedByteArray) -> Variant:
@@ -37,7 +38,7 @@ static func _parse_custom(data: PackedByteArray) -> Variant:
 		return result
 	
 	if variant == null:
-		printerr("serialized variant is null!, failed to deserialize. %s" % [path, variant])
+		printerr("serialized variant is null!, failed to deserialize. %s, %s" % [path, variant])
 		return result
 	
 	result._data = variant
@@ -160,6 +161,11 @@ static func parse_dictionary(data: PackedByteArray) -> Dictionary:
 	for key in dictionary:
 		result[parse(key)] = parse(dictionary[key])
 	return result
+
+static func parse_string_name(data: PackedByteArray) -> StringName:
+	_buffer.data_array = data
+	var type: SimusNetSerializer.TYPE = _buffer.get_u8()
+	return _buffer.get_var()
 
 static func parse(variant: Variant, try: bool = true) -> Variant:
 	if !try:

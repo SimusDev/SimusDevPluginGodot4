@@ -8,7 +8,13 @@ var _callables: Dictionary[StringName, Callable] = {}
 
 var _object: Object : get = get_object
 
+var _object_weak_ref: WeakRef
+
 const META: StringName = "SimusNetRPCConfigHandler"
+
+signal _async_received()
+var _async_method: StringName
+var _async_args: Array = []
 
 func get_method_unique_id(method: StringName) -> int:
 	return _list_by_name.keys().find(method)
@@ -20,9 +26,7 @@ func get_callable_by_method_name(name: StringName) -> Variant:
 	return _callables.get(name, null)
 
 func get_object() -> Object:
-	if !is_instance_valid(_object):
-		_object = null
-	return _object
+	return _object_weak_ref.get_ref()
 
 static func get_or_create(object: Object) -> SimusNetRPCConfigHandler:
 	if object.has_meta(META):
@@ -33,7 +37,7 @@ static func get_or_create(object: Object) -> SimusNetRPCConfigHandler:
 					return cfg
 	
 	var handler := SimusNetRPCConfigHandler.new()
-	handler._object = object 
+	handler._object_weak_ref = weakref(object) 
 	object.set_meta(META, handler)
 	handler._initialize()
 	return handler
