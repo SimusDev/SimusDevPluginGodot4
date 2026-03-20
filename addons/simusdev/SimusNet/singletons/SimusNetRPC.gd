@@ -135,6 +135,15 @@ func _invoke_on_without_validating(peer: int, callable: Callable, args: Array, c
 	_start_cooldown(callable)
 	
 
+var PACKET_AND_METHOD: Dictionary[SimusNet.PACKET, Callable] = {
+	SimusNet.PACKET.RPC: _on_packet_rpc,
+	SimusNet.PACKET.RPC_DEFLATE: _on_packet_rpc,
+	SimusNet.PACKET.RPC_ZSTD: _on_packet_rpc,
+	SimusNet.PACKET.RPC_ASYNC: _on_packet_rpc,
+	SimusNet.PACKET.RPC_ASYNC_DELFATE: _on_packet_rpc,
+	SimusNet.PACKET.RPC_ASYNC_ZSTD: _on_packet_rpc,
+}
+
 func _on_peer_packet_received(id: int, packet: PackedByteArray) -> void:
 	SimusNetProfiler._put_down_packet()
 	SimusNetProfiler.get_instance()._put_down_traffic(packet.size())
@@ -142,19 +151,23 @@ func _on_peer_packet_received(id: int, packet: PackedByteArray) -> void:
 	var deserialized: Variant = SimusNetArguments.deserialize(packet)
 	#var deserialized: Variant = bytes_to_var(packet)
 	#print('received packet(%s, size: %s): %s' % [id, packet.size(), deserialized])
-	var packet_id: int = deserialized[0]
+	var packet_id: SimusNet.PACKET = deserialized[0]
 	deserialized.pop_front()
 	
-	if packet_id == SimusNet.PACKET.RPC:
-		var i: int = deserialized[0]
-		var m: int = deserialized[1]
-		for c in 2:
-			deserialized.pop_front()
-		_receive_rpc(packet, id, i, m, deserialized)
-		
+	if packet_id in PACKET_AND_METHOD:
+		var callable: Callable = PACKET_AND_METHOD[packet_id]
+		callable.call(packet, packet_id, id, deserialized)
 	
 
-func _receive_rpc(original_packet: PackedByteArray, peer: int, identity_id: int, method_id: int, args: Array) -> void:
+func _on_packet_rpc(original_packet: PackedByteArray, type: SimusNet.PACKET, peer: int, args: Array) -> void:
+	var metadata: Dictionary = {}
+	var i: int = args[0]
+	var m: int = args[1]
+	for c in 2:
+		args.pop_front()
+	_receive_rpc(original_packet, peer, i, m, args)
+
+func _receive_rpc(original_packet: PackedByteArray, peer: int, identity_id: int, method_id: int, args: Array, metadata: Dictionary = {}) -> void:
 	SimusNetRemote.sender_id = peer
 	#print('received rpc: %s, %s, %s, %s' % [peer, identity_id, method_id, args])
 	var identity: SimusNetIdentity = SimusNetIdentity.get_dictionary_by_unique_id().get(identity_id)
