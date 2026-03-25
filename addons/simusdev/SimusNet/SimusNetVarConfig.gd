@@ -6,7 +6,7 @@ var _reliable: bool = true
 
 var _replication: bool = false
 var _replicate_on_spawn: bool = true
-var _serialize: bool = false
+var _serialize: bool = true
 
 enum MODE {
 	AUTHORITY,

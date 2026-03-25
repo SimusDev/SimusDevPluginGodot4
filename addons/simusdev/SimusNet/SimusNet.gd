@@ -11,7 +11,9 @@ enum PACKET {
 	RPC_ASYNC,
 	RPC_ASYNC_DELFATE,
 	RPC_ASYNC_ZSTD,
-	VARIABLE,
+	VARIABLES,
+	VARIABLES_DEFLATE,
+	VARIABLES_ZSTD,
 }
 
 static func is_network_authority(object: Object) -> bool:

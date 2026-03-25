@@ -104,7 +104,6 @@ static func _parse_custom(variant: Object) -> PackedByteArray:
 	buffer.put_u8(TYPE.CUSTOM)
 	buffer.put_utf8_string(ResourceUID.path_to_uid(script.resource_path).replacen("uid://", ""))
 	buffer.put_var(SimusNetSerializer.parse(serialization.get_data()))
-	#print(ResourceUID.path_to_uid(script.resource_path).to_utf8_buffer().hex_encode())
 	return buffer.data_array
 
 static func parse_object(variant: Object) -> PackedByteArray:

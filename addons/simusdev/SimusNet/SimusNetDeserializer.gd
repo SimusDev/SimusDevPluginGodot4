@@ -35,18 +35,17 @@ static func _parse_custom(data: PackedByteArray) -> Variant:
 	var path: String = "uid://" + uid
 	var static_script: Script = load(path)
 	if !static_script:
-		printerr("failed to load script %s!" % [path])
-		return result
-	
-	if variant == null:
-		printerr("serialized variant is null!, failed to deserialize. %s, %s" % [path, variant])
-		return result
+		_throw_error("_parse_custom(): failed to load script %s!" % [path])
+		return result._result
 	
 	result._data = variant
 	
 	if SimusNetCustomSerialization.find_base_script(static_script).has_method(SimusNetCustomSerialization.METHOD_DESERIALIZE):
 		static_script.call(SimusNetCustomSerialization.METHOD_DESERIALIZE, result)
 	
+	#if result._result == null:
+		#_throw_error("_parse_custom(): deserialized variant is null! %s, %s, %s" % [path, variant, load(path)])
+	#
 	return result._result
 	
 
