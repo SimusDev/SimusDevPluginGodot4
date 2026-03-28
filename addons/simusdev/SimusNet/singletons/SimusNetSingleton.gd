@@ -27,7 +27,8 @@ var __static_class_list: Array[Object] = [
 	SimusNet.new(),
 	SimusNetSerializer.new(),
 	SimusNetDeserializer.new(),
-	SimusNetArguments.new()
+	SimusNetArguments.new(),
+	SimusNetDictionarySerializer.new()
 ]
 
 static var _instance: SimusNetSingleton

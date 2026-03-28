@@ -5,7 +5,7 @@ var _channel: int = SimusNetChannels.BUILTIN.VARS_SEND_RELIABLE
 var _reliable: bool = true
 
 var _replication: bool = false
-var _replicate_on_spawn: bool = true
+var _replicate_on_spawn: bool = false
 var _serialize: bool = true
 
 
@@ -126,7 +126,7 @@ func _network_ready(handler: SimusNetVarConfigHandler) -> void:
 	
 	await _async_apply_channel(_channel)
 	
-	if _replication and _replicate_on_spawn and !_mode == MODE.TO_SERVER:
+	if _replicate_on_spawn and !_mode == MODE.TO_SERVER:
 		SimusNetVars.replicate(handler.get_object(), handler.get_properties_for(self), _reliable)
 
 func _network_disconnect(handler: SimusNetVarConfigHandler) -> void:
