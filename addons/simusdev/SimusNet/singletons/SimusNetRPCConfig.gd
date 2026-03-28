@@ -116,7 +116,9 @@ func set_mode(mode: MODE) -> SimusNetRPCConfig:
 	return self
 
 var ___require_ownership: bool = false
-func require_ownership(value: bool = false) -> SimusNetRPCConfig:
+
+func flag_require_ownership(value: bool = false) -> SimusNetRPCConfig:
+	___require_ownership = value
 	return self
 
 func flag_mode_server_only() -> SimusNetRPCConfig:

@@ -97,7 +97,6 @@ func _invoke_on_without_validating(peer: int, callable: Callable, args: Array, c
 		await identity.on_ready
 	
 	var unique_id: int = identity.get_unique_id()
-	var serialized_method_id: Variant = SimusNetMethods.try_serialize_into_variant(callable)
 	
 	var packet: Array = [
 		SimusNet.PACKET.RPC,
