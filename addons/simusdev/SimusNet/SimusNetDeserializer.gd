@@ -25,13 +25,13 @@ static var __type_and_method: Dictionary[SimusNetSerializer.TYPE, Callable] = {
 	SimusNetSerializer.TYPE.ARRAY: parse_array,
 	SimusNetSerializer.TYPE.ARRAY_TYPED: parse_array,
 	SimusNetSerializer.TYPE.DICTIONARY: parse_dictionary,
-	SimusNetSerializer.TYPE.CUSTOM: _parse_custom,
+	SimusNetSerializer.TYPE.CUSTOM: parse_custom,
 	SimusNetSerializer.TYPE.NULL: parse_null,
 	SimusNetSerializer.TYPE.STRING_NAME : parse_string_name,
 	SimusNetSerializer.TYPE.VAR: parse_var,
 }
 
-static func _parse_custom(data: PackedByteArray) -> Variant:
+static func parse_custom(data: PackedByteArray) -> Variant:
 	_buffer.data_array = data
 	var type: SimusNetSerializer.TYPE = _buffer.get_u8()
 	var uid: String = _buffer.get_utf8_string()

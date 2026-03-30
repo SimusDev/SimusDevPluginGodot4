@@ -251,6 +251,8 @@ func _invoke_on(peer: int, callable: Callable, args: Array, async: bool = false)
 		
 		var serialized_args: Array = []
 		var bytes: PackedByteArray = []
+		SimusNetSerializer._current_blocked_methods = config._serializer_blocked_methods
+		
 		if config._simulate and config._serialization:
 			for i in args:
 				serialized_args.append(SimusNetSerializer.parse(i))

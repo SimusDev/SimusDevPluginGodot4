@@ -26,6 +26,9 @@ const BLACKLIST: Array[int] = [
 ]
 
 static func is_object_has_custom_serialization(object: Object) -> bool:
+	if _current_blocked_methods.has(parse_custom.get_method()):
+		return false
+	
 	return object.has_method(SimusNetCustomSerialization.METHOD_SERIALIZE) and \
 	object.has_method(SimusNetCustomSerialization.METHOD_DESERIALIZE)
 
@@ -104,8 +107,9 @@ static func parse(variant: Variant, try: bool = true) -> Variant:
 	
 	return parse_var(variant)
 
-static func _parse_custom(variant: Object) -> PackedByteArray:
+static func parse_custom(variant: Object) -> PackedByteArray:
 	var serialization := SimusNetCustomSerialization.new()
+	_current_blocked_methods.clear()
 	if variant.has_method(SimusNetCustomSerialization.METHOD_SERIALIZE):
 		variant.call(SimusNetCustomSerialization.METHOD_SERIALIZE, serialization)
 	var script: Script = variant.get_script()
@@ -139,7 +143,7 @@ static func parse_raw_object(variant: Object) -> PackedByteArray:
 
 static func parse_object(variant: Object) -> PackedByteArray:
 	if is_object_has_custom_serialization(variant):
-		return _parse_custom(variant)
+		return parse_custom(variant)
 
 	if variant is Node:
 		return parse_node(variant)
@@ -296,7 +300,7 @@ static func test() -> void:
 	print("resource: %s bytes" % resource.size())
 	print(SimusNetDeserializer.parse(resource))
 	
-	var custom: PackedByteArray = SimusNetSerializer._parse_custom(SimusNetSingleton.get_instance())
+	var custom: PackedByteArray = SimusNetSerializer.parse_custom(SimusNetSingleton.get_instance())
 	print("custom: %s bytes" % custom.size())
 	print(SimusNetDeserializer.parse(custom))
 	
