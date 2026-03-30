@@ -7,7 +7,7 @@ class_name SimusNetTransform
 @export var enabled: bool = true
 @export var interpolate: bool = true : get = is_interpolated
 @export var interpolate_speed: float = 15.0 : get = get_interpolate_speed
-@export var tickrate: float = 32.0
+@export var tickrate: float = 32.0 : get = get_tickrate
 @export var server_authorative: bool = false
 
 var _tickrate_time: float = 0.0
@@ -22,6 +22,9 @@ const _SP: StringName = &"scale"
 var _data: Dictionary[StringName, Variant] = {}
 
 var _identity: SimusNetIdentity
+
+func get_tickrate() -> float:
+	return tickrate
 
 func _hook_position_snapshot() -> bool:
 	var p: bool = _data.get_or_add(_PP, node.position) != node.position
@@ -42,6 +45,12 @@ func get_multiplayer_authority() -> int:
 	if server_authorative:
 		return 1
 	return super()
+
+func set_multiplayer_authority(id: int, recursive: bool = true) -> void:
+	if server_authorative:
+		super(1, recursive)
+	else:
+		super(id, recursive)
 
 func is_interpolated() -> bool:
 	return interpolate

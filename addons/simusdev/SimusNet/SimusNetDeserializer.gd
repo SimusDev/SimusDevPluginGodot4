@@ -2,6 +2,11 @@
 extends RefCounted
 class_name SimusNetDeserializer
 
+static var _instance: WeakRef = WeakRef.new()
+
+static func get_instance() -> SimusNetDeserializer:
+	return _instance.get_ref()
+
 static var _settings: SimusNetSettings
 
 static var _buffer: StreamPeerBuffer = StreamPeerBuffer.new()
@@ -215,5 +220,5 @@ static func parse_arguments(bytes: PackedByteArray, deserialization: bool = true
 
 static func _throw_error(...args: Array) -> void:
 	if _settings.debug_enable:
-		printerr("[SimusNetDeserializer]: ")
+		printerr("[YOUR UNIQUE ID: %s] [SimusNetDeserializer]: " % SimusNetConnection.get_unique_id())
 		printerr(args)

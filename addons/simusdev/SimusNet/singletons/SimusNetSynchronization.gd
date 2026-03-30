@@ -89,8 +89,13 @@ func _process(delta: float) -> void:
 		var peer_data: Dictionary = _transform_packets[peer]
 		for _batch: int in peer_data:
 			var batch_data: Dictionary = peer_data[_batch]
+			var reliable: bool = false
+			
 			var bytes: PackedByteArray = SimusNetDictionarySerializer.serialize(batch_data)
-			_receive_batched_transform.rpc_id(peer, bytes)
+			if reliable:
+				_receive_batched_transform_rpc_reliable.rpc_id(peer, bytes)
+			else:
+				_receive_batched_transform_rpc.rpc_id(peer, bytes)
 			
 			SimusNetProfiler.get_instance()._transform_up_traffic += bytes.size() + 3
 			SimusNetProfiler.get_instance()._total_traffic += bytes.size() + 3
@@ -101,6 +106,13 @@ func _process(delta: float) -> void:
 	_transform_packets.clear()
 
 @rpc("any_peer", "call_remote", "unreliable", SimusNetChannels.BUILTIN.TRANSFORM)
+func _receive_batched_transform_rpc(packet: PackedByteArray) -> void:
+	_receive_batched_transform(packet)
+
+@rpc("any_peer", "call_remote", "reliable", SimusNetChannels.BUILTIN.TRANSFORM_RELIABLE)
+func _receive_batched_transform_rpc_reliable(packet: PackedByteArray) -> void:
+	_receive_batched_transform(packet)
+
 func _receive_batched_transform(packet: PackedByteArray) -> void:
 	var bytes_size: int = packet.size() + 3
 	
@@ -119,7 +131,6 @@ func _receive_batched_transform(packet: PackedByteArray) -> void:
 		if !identity.owner:
 			logger.debug_error("_receive_batched_transform() from peer %s, failed to find SimusNetTransform with ID %s on your local instance." % [multiplayer.get_remote_sender_id(), identity_id])
 			continue
-		
 		
 		if SimusNet.get_network_authority(identity.owner) == multiplayer.get_remote_sender_id() or multiplayer.get_remote_sender_id() == SimusNet.SERVER_ID:
 			var data: Dictionary = deserialized[identity_id]
