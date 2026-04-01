@@ -70,12 +70,11 @@ func flush() -> void:
 		
 		
 		var batch: int = 0
-		var step: int = -1
 		
-		var batches: Dictionary[int, Array] = {}
+		var batches: Dictionary[int, Dictionary] = {}
 		
 		for packet: Dictionary in packets:
-			if packet.bytes.size() >= MTU or config.max_packets_per_batch <= 1:
+			if (packet.bytes.size() >= MTU * 0.85):
 				_send_raw(
 					packet.bytes,
 					peer,
@@ -86,19 +85,25 @@ func flush() -> void:
 				
 				continue
 			
-			step += 1
-			
-			if step >= config.max_packets_per_batch:
-				step = -1
+			var data: Dictionary = batches.get_or_add(batch, {})
+			var saved_bytes: int = data.get_or_add("saved_bytes", 0)
+			if saved_bytes >= MTU * 0.85:
 				batch += 1
 			
-			var data: Array = batches.get_or_add(batch, [])
-			data.append(packet.bytes)
-		
+			data = batches.get_or_add(batch, {})
+			var buffer: Array = data.get_or_add("buffer", [])
+			
+			buffer.append(packet.bytes)
+			
+			saved_bytes = data.get_or_add("saved_bytes", 0)
+			saved_bytes += packet.bytes.size()
+			data.saved_bytes = saved_bytes
+			
+			
 		
 		for batch_id: int in batches:
-			var batched_packets: Array = batches[batch_id]
-			var serialized_bytes: PackedByteArray = SimusNetArguments.serialize(batched_packets)
+			var buffer: Array = batches[batch_id].buffer
+			var serialized_bytes: PackedByteArray = SimusNetArguments.serialize(buffer)
 			_send_raw(serialized_bytes, peer, mode, channel, PACKET_HEADER.BATCH)
 	
 	_queue.clear()
