@@ -161,4 +161,4 @@ func _send_raw(packet: PackedByteArray, peer: int,
 		_api.send_bytes(_buffer.data_array, peer, mode, channel)
 		
 		SimusNetProfiler._put_up_packet()
-		SimusNetProfiler._instance._put_up_traffic(_buffer.data_array.size())
+		SimusNetProfiler._instance._put_up_traffic(_buffer.data_array.size() + 3)

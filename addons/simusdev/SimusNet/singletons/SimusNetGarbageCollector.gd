@@ -53,6 +53,9 @@ func _collect_threaded() -> void:
 			identites_generated.erase(i)
 			collected_identites += 1
 	
+	if !singleton.settings.debug_enable:
+		return
+	
 	if collected_identites > 0:
 		push_warning("Cleared %s Identites." % collected_identites)
 

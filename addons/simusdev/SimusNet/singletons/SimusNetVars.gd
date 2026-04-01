@@ -101,11 +101,11 @@ func _on_variable_received(og_packet_size: int, packet_type: SimusNet.PACKET, pe
 	
 	var identity: SimusNetIdentity = SimusNetIdentity.get_dictionary_by_unique_id().get(identity_id)
 	if !identity:
-		logger.push_error("_on_variable_received() cant find identity with ID %s, %s, %s" % [identity_id, property_id])
+		logger.push_error("_on_variable_received() cant find identity with ID %s, %s" % [identity_id, property_id])
 		return
 	
 	if !identity.owner:
-		logger.push_error("_on_variable_received() cant find identity owner with ID %s, %s, %s" % [identity_id, property_id])
+		logger.push_error("_on_variable_received() cant find identity owner with ID %s, %s" % [identity_id, property_id])
 		return
 	
 	var config_handler: SimusNetVarConfigHandler = SimusNetVarConfigHandler.find_in(identity.owner)

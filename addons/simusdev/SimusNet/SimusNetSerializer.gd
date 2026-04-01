@@ -55,6 +55,8 @@ enum TYPE {
 	CUSTOM,
 	STRING_NAME,
 	VAR,
+	BOOL_TRUE,
+	BOOL_FALSE,
 }
 
 static var __class_and_method: Dictionary[StringName, Callable] = {
