@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="SimusNetTransportConfig" format=3 uid="uid://cxaqf117abaif"]
+
+[ext_resource type="Script" uid="uid://b8jodbg6aiq8w" path="res://addons/simusdev/SimusNet/singletons/SimusNetTransportConfig.gd" id="1_r1o4g"]
+
+[resource]
+script = ExtResource("1_r1o4g")
+metadata/_custom_type_script = "uid://b8jodbg6aiq8w"

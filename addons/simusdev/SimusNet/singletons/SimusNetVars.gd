@@ -7,7 +7,6 @@ var _timer: Timer
 
 static var _buffer: StreamPeerBuffer = StreamPeerBuffer.new()
 
-@export var _processor_send: SimusNetVarsProccessorSend
 static var _instance: SimusNetVars
 
 static func get_instance() -> SimusNetVars:
@@ -49,8 +48,15 @@ static func try_deserialize_array_from_variant(variant: Variant) -> PackedString
 	return result
 	
 
+@export var transport: SimusNetTransport
+
 func initialize() -> void:
+	transport.config = singleton.settings.transport_var_config
+	if !transport.config:
+		transport.config = SimusNetTransportConfig.new()
+	
 	_instance = self
+	
 	_event_cached = SimusNetEvents.event_variable_cached
 	_event_uncached = SimusNetEvents.event_variable_uncached
 	
@@ -62,7 +68,8 @@ func initialize() -> void:
 	
 	process_mode = Node.PROCESS_MODE_DISABLED
 	
-	singleton.api.peer_packet.connect(_on_peer_packet)
+	#singleton.api.peer_packet.connect(_on_peer_packet)
+	SimusNetPacketProcessor.get_instance().packet_received.connect(_on_peer_packet)
 	
 	#_timer = Timer.new()
 	#_timer.wait_time = 1.0 / singleton.settings.synchronization_vars_tickrate
@@ -234,9 +241,7 @@ func _handle_replicate(data: Dictionary) -> void:
 			SimusNetDictionarySerializer.serialize(channel_data),
 			)
 		
-		singleton.api.send_bytes(bytes, SimusNet.SERVER_ID, MultiplayerPeer.TRANSFER_MODE_RELIABLE, channel)
-		SimusNetProfiler._put_up_packet()
-		SimusNetProfiler._instance._put_up_traffic(bytes.size() + 1)
+		transport.send_packet(bytes, SimusNet.SERVER_ID, MultiplayerPeer.TRANSFER_MODE_RELIABLE, channel)
 
 
 func _on_variable_replicate_request(og_packet_size: int, packet_type: SimusNet.PACKET, peer: int, raw_data: PackedByteArray) -> void:
@@ -320,18 +325,25 @@ static func send(object: Object, property: String, target_peers: PackedInt32Arra
 				continue
 			
 			if config._reliable:
-				singleton.api.send_bytes(packet_bytes, p_id, MultiplayerPeer.TRANSFER_MODE_RELIABLE, config._channel)
+				_instance.transport.send_packet(
+					packet_bytes,
+					p_id,
+					MultiplayerPeer.TRANSFER_MODE_RELIABLE,
+					config._channel,
+					config._immediate
+				)
+				#singleton.api.send_bytes(packet_bytes, p_id, MultiplayerPeer.TRANSFER_MODE_RELIABLE, config._channel)
 			else:
-				singleton.api.send_bytes(packet_bytes, p_id, MultiplayerPeer.TRANSFER_MODE_UNRELIABLE, config._channel)
-			
-			SimusNetProfiler._put_up_packet()
-			SimusNetProfiler._instance._put_up_traffic(packet_bytes.size() + 1)
+				_instance.transport.send_packet(
+					packet_bytes,
+					p_id,
+					MultiplayerPeer.TRANSFER_MODE_UNRELIABLE,
+					config._channel,
+					config._immediate
+				)
+				#singleton.api.send_bytes(packet_bytes, p_id, MultiplayerPeer.TRANSFER_MODE_UNRELIABLE, config._channel)
+				
 			SimusNetProfiler._instance._put_var_traffic(packet_bytes.size(), identity, property, false)
-
-@onready var _send_handle_callables: Dictionary[int, Callable] = {
-	SimusNetChannels.BUILTIN.VARS_SEND_RELIABLE: _processor_send._default_recieve_send,
-	SimusNetChannels.BUILTIN.VARS_SEND: _processor_send._default_recieve_send_unreliable,
-}
 
 func _replicate_synced_type(type: SimusNetSyncedType) -> void:
 	if SimusNetConnection.is_server():
