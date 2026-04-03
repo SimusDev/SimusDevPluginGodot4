@@ -11,6 +11,9 @@ class_name SimusNetSettings
 @export_group("Synchronization", "synchronization")
 @export var synchronization_transform_batch_count: int = 25
 
+@export_group("Hashing", "hashing")
+@export var hashing_resource_folders_to_hash: PackedStringArray
+
 #@export_group("Time", "time")
 #@export var time_tickrate: float = 48.0 : set = set_time_tickrate
 #func set_time_tickrate(tickrate: float) -> void:

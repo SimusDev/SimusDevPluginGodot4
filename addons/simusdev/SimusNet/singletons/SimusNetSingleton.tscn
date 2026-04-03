@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://b88ex8jnlnb1g" path="res://addons/simusdev/SimusNet/singletons/SimusNetPacketProcessor.gd" id="2_1sy8m"]
 [ext_resource type="Script" uid="uid://bmseedkdeyu7q" path="res://addons/simusdev/SimusNet/singletons/SimusNetTransport.gd" id="2_f15va"]
 [ext_resource type="Script" uid="uid://blgvoebv5j1yx" path="res://addons/simusdev/SimusNet/singletons/SimusNetCache.gd" id="2_qc26q"]
+[ext_resource type="Script" uid="uid://cgf274dwphan1" path="res://addons/simusdev/SimusNet/singletons/SimusNetAntiCheat.gd" id="2_wvp73"]
 [ext_resource type="Script" uid="uid://dw6wbflch2xcm" path="res://addons/simusdev/SimusNet/singletons/SimusNetChannels.gd" id="3_e7adu"]
 [ext_resource type="Script" uid="uid://dq0hs106g58xm" path="res://addons/simusdev/SimusNet/singletons/SimusNetConnection.gd" id="4_qc1ra"]
 [ext_resource type="Script" uid="uid://dx1ggnf2fcfjs" path="res://addons/simusdev/SimusNet/events/SimusNetEvents.gd" id="5_3i2gk"]
@@ -28,9 +29,10 @@ metadata/_custom_type_script = "uid://b8jodbg6aiq8w"
 script = ExtResource("14_f15va")
 metadata/_custom_type_script = "uid://b8jodbg6aiq8w"
 
-[node name="SimusNetSingleton" type="Node" unique_id=1723475864 node_paths=PackedStringArray("garbage_collector", "profiler", "events", "cache", "channels", "connection", "time", "handshake", "methods", "RPC", "RPCgodot", "visibility", "resources", "vars", "synchronization")]
+[node name="SimusNetSingleton" type="Node" unique_id=1723475864 node_paths=PackedStringArray("anticheat", "garbage_collector", "profiler", "events", "cache", "channels", "connection", "time", "handshake", "methods", "RPC", "RPCgodot", "visibility", "resources", "vars", "synchronization")]
 process_mode = 4
 script = ExtResource("1_6nds0")
+anticheat = NodePath("SimusNetAntiCheat")
 garbage_collector = NodePath("GarbageCollector")
 profiler = NodePath("Profiler")
 events = NodePath("Events")
@@ -46,6 +48,10 @@ visibility = NodePath("Visibility")
 resources = NodePath("Resources")
 vars = NodePath("Vars")
 synchronization = NodePath("Synchronization")
+
+[node name="SimusNetAntiCheat" type="Node" parent="." unique_id=1845814300]
+script = ExtResource("2_wvp73")
+metadata/_custom_type_script = "uid://cgf274dwphan1"
 
 [node name="SimusNetPacketProcessor" type="Node" parent="." unique_id=1806379245]
 script = ExtResource("2_1sy8m")
