@@ -16,7 +16,6 @@ func initialize() -> void:
 	SimusNetEvents.event_connected_pre.listen(_on_connected_pre)
 	SimusNetEvents.event_disconnected.listen(_on_disconnected)
 
-
 func _on_disconnected() -> void:
 	_hash.clear()
 
@@ -74,53 +73,3 @@ static func get_unique_id_by_path_async(path: String, timeout_ms: int = 5000) ->
 		await _instance.get_tree().physics_frame
 		id = get_cached().find(path)
 	return id
-
-static func cache(resource: Resource) -> void:
-	if SimusNetConnection.is_server():
-		var path: String = get_unique_path(resource)
-		if path.is_empty():
-			return
-		
-		if get_cached().has(path):
-			return
-		
-		_instance._cache_rpc.rpc(path)
-
-static func cache_by_path(path: String) -> void:
-	if SimusNetConnection.is_server():
-		if path.is_empty():
-			return
-		
-		if get_cached().has(path):
-			return
-		
-		_instance._cache_rpc.rpc(path)
-
-@rpc("authority", "call_local", "reliable", 0)
-func _cache_rpc(path: String) -> void:
-	get_cached().append(path)
-
-static func uncache(resource: Resource) -> void:
-	if SimusNetConnection.is_server():
-		var path: String = get_unique_path(resource)
-		if path.is_empty():
-			return
-		
-		if !get_cached().has(path):
-			return
-		
-		_instance._uncache_rpc.rpc(path)
-
-static func uncache_by_name(path: String) -> void:
-	if SimusNetConnection.is_server():
-		if path.is_empty():
-			return
-		
-		if !get_cached().has(path):
-			return
-		
-		_instance._uncache_rpc.rpc(path)
-
-@rpc("authority", "call_local", "reliable", 0)
-func _uncache_rpc(path: String) -> void:
-	get_cached().erase(path)
