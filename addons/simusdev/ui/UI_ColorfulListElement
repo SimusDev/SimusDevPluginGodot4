@@ -1,0 +1,65 @@
+class_name UI_ColorfulListElement extends Node
+
+enum Mode {
+	MODULATE,
+	SELF_MODULATE
+}
+
+@export var mode:Mode
+@export var node:Node ## The n
+@export var child_target_node:String = "." ## e.g: "Panel" - Сolor will be applied to node/children/Panel
+
+const META_KEY:StringName = &"cached_canvas_item"
+
+@export_group("Colors")
+@export var _color_odd:Color = Color(1.8, 1.8, 1.8, 1.0)
+@export var _color_even:Color = Color(1.0, 1.0, 1.0, 1.0)
+
+var _update_strategy:Callable
+
+func _ready() -> void:
+	if not node:
+		return
+	
+	if mode == Mode.MODULATE:
+		_update_strategy = _update_modulate
+	else:
+		_update_strategy = _update_self_modulate
+		
+	node.sort_children.connect(_update_elements_brightness)
+	node.child_entered_tree.connect(_on_child_entered)
+	node.child_exiting_tree.connect(_on_child_exiting)
+	
+	for child in node.get_children():
+		_cache_target(child)
+		
+	_update_elements_brightness()
+
+func _on_child_entered(child:Node) -> void:
+	_cache_target(child)
+
+func _on_child_exiting(child:Node) -> void:
+	child.remove_meta(META_KEY)
+
+func _cache_target(child:Node) -> void:
+	var target:Node = child.get_node(child_target_node)
+	if target is CanvasItem:
+		child.set_meta(META_KEY, target)
+
+func _update_elements_brightness() -> void:
+	_update_strategy.call()
+
+func _update_modulate() -> void:
+	var children:Array[Node] = node.get_children()
+	for i in children.size():
+		var target = children[i].get_meta(META_KEY, null)
+		if target:
+			target.modulate = _color_odd if (i & 1) else _color_even
+
+
+func _update_self_modulate() -> void:
+	var children:Array[Node] = node.get_children()
+	for i in children.size():
+		var target = children[i].get_meta(META_KEY, null)
+		if target:
+			target.self_modulate = _color_odd if (i & 1) else _color_even
