@@ -61,6 +61,14 @@ func _on_input(event: InputEvent) -> void:
 	if Input.is_action_just_pressed(settings.get("input", "ui_cancel")):
 		close_last_active()
 
+func close_popup(node:Node) -> void:
+	var popup_reference:SD_UIPopupReference
+	if !node.has_meta("SD_UIPopupReference"):
+		return
+	
+	popup_reference = node.get_meta("SD_UIPopupReference")
+	popup_reference.close()
+
 func close_last_active() -> void:
 	if _active.is_empty():
 		return
